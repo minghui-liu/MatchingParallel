@@ -17,8 +17,8 @@ void reshapeKernel(Matrix d_In, Matrix d_Out) {
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	if(y > d_In.height || x > d_In.width) return;
-	int c = x * d_In.height + y; 
-	d_Out.elements[(c%d_Out.height) * d_Out.width + (c/d_Out.height)] = d_In.elements[c];
+	int c = x * d_In.height + y;
+	d_Out.elements[(c%d_Out.height)*d_Out.width+(c/d_Out.height)] = d_In.elements[(c%d_In.height)*d_In.width+(c/d_In.height)];
 }
 
 void reshape(Matrix In, Matrix Out) {
@@ -28,9 +28,9 @@ void reshape(Matrix In, Matrix Out) {
 	d_In.height = In.height;
 	size_t size = In.width * In.height * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	printf("Copy input matrix to device: %s\n", cudaGetErrorString(err));
 	
 	// allocate Out in device memory
 	Matrix d_Out;
@@ -47,7 +47,7 @@ void reshape(Matrix In, Matrix Out) {
 
 	// read Out from device memory
 	err = cudaMemcpy(Out.elements, d_Out.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy C off of device: %s\n",cudaGetErrorString(err));
+	printf("Copy output matrix off of device: %s\n",cudaGetErrorString(err));
 
 	// free device memory
 	cudaFree(d_In.elements);
@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
 	b1 = atoi(argv[3]); // Height of B
 	b2 = atoi(argv[4]); // Width of B
 	if (a1*a2 != b1*b2) {
-		printf("The two matrices must have the same number of elements");
+		printf("Input and output matrices must have the same number of elements");
 		return 0;
 	}
 	A.height = a1;
