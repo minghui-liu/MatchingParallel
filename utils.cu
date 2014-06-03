@@ -183,7 +183,7 @@ void isSymmetric(Matrix A) {
 //check if a matrix is symmetric with allowed error eps
 
 __global__
-int isSymmetricKernel(Matrix d_A, float eps){
+int isSymmetricEpsKernel(Matrix d_A, double eps){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -195,7 +195,7 @@ int isSymmetricKernel(Matrix d_A, float eps){
 		return 1;
 }
 
-void isSymmetric(Matrix A, float eps){
+void isSymmetricEps(Matrix A, double eps){
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -209,7 +209,7 @@ void isSymmetric(Matrix A, float eps){
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	zerosKernel<<<dimGrid, dimBlock>>>(d_A, eps);
+	isSymmetricKernel<<<dimGrid, dimBlock>>>(d_A, eps);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
@@ -315,7 +315,7 @@ void matSub(Matrix A, Matrix B, Matrix C){
 // invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	tranposeKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+	matSubKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
@@ -394,46 +394,48 @@ void matAdd(Matrix A, Matrix B, Matrix C){
 
 
 __global__
-void matTimesScalerKernel(Matrix d_A, Matrix d_B, float C){
+void matTimesScalerKernel(Matrix d_A, Matrix d_B, double C){
 int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	d_B.elements[row*A.width + col] = d_A.elements[row*A.width + col] * C;
+	d_B.elements[row*d_A.width + col] = d_A.elements[row*d_A.width + col] * C;
 }
 
-void matSub(Matrix A, Matrix B, float C){
+void matTimesScaler(Matrix A, Matrix B, double C){
 
 // load A, B, and C to device memory
 	Matrix d_A;
 	Matrix d_B;
+	
 	d_A.width = A.width;
 	d_B.width = B.width;
 	d_A.height = A.height;
 	d_B.height = B.height;
 	size_t size = A.width * A.height * sizeof(double);
 
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));
+	cudaError_t errA = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
 
-	cudaError_t err = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));
+	cudaError_t errB = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(errB));
 	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy B to device: %s\n", cudaGetErrorString(err));
+	printf("Copy B to device: %s\n", cudaGetErrorString(errB));
 
 // invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	tranposeKernel<<<dimGrid, dimBlock>>>(d_A, d_B, C);
-	err = cudaThreadSynchronize();
+	matTimesScalerKernel<<<dimGrid, dimBlock>>>(d_A, d_B, C);
+	cudaError_t err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
 // read A from device memory
-	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(err));
-	err = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy B off of device: %s\n", cudaGetErrorString(err));
+	errA = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy A off of device: %s\n",cudaGetErrorString(errA));
+// read B from device memory
+	errB = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy B off of device: %s\n", cudaGetErrorString(errB));
 
 // free device memory
 	cudaFree(d_A.elements);
@@ -441,46 +443,48 @@ void matSub(Matrix A, Matrix B, float C){
 }
 
 __global__
-void matPlusScalerKernel(Matrix d_A, Matrix d_B, float C){
+void matPlusScalerKernel(Matrix d_A, Matrix d_B, double C){
 int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	d_B.elements[row*A.width + col] = d_A.elements[row*A.width + col] + C;
+	d_B.elements[row*d_A.width + col] = d_A.elements[row*d_A.width + col] + C;
 }
 
-void matSub(Matrix A, Matrix B, float C){
+void matPlusScaler(Matrix A, Matrix B, double C){
 
 // load A, B, and C to device memory
 	Matrix d_A;
 	Matrix d_B;
+	
 	d_A.width = A.width;
 	d_B.width = B.width;
 	d_A.height = A.height;
 	d_B.height = B.height;
 	size_t size = A.width * A.height * sizeof(double);
 
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));
+	cudaError_t errA = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
 
-	cudaError_t err = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));
+	cudaError_t errB = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(errB));
 	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy B to device: %s\n", cudaGetErrorString(err));
+	printf("Copy B to device: %s\n", cudaGetErrorString(errB));
 
 // invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	tranposeKernel<<<dimGrid, dimBlock>>>(d_A, d_B, C);
-	err = cudaThreadSynchronize();
+	matPlusScalerKernel<<<dimGrid, dimBlock>>>(d_A, d_B, C);
+	cudaError_t err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
 // read A from device memory
-	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(err));
-	err = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy B off of device: %s\n", cudaGetErrorString(err));
+	errA = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy A off of device: %s\n",cudaGetErrorString(errA));
+// read B from device memory
+	errB = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy B off of device: %s\n", cudaGetErrorString(errB));
 
 // free device memory
 	cudaFree(d_A.elements);
@@ -492,10 +496,10 @@ void matDivKernel(Matrix d_A, Matrix d_B, Matrix d_C){
 int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	d_C.elements[row*A.width + col] = d_A.elements[row*A.width + col] / d_B.elements[row*A.width + col];
+	d_C.elements[row*d_C.width + col] = d_A.elements[row*d_A.width + col] / d_B.elements[row*d_B.width + col];
 }
 
-void matAdd(Matrix A, Matrix B, Matrix C){
+void matDiv(Matrix A, Matrix B, Matrix C){
 
 // load A, B, and C to device memory
 	Matrix d_A;
@@ -509,38 +513,41 @@ void matAdd(Matrix A, Matrix B, Matrix C){
 	d_C.height = C.height;
 	size_t size = A.width * A.height * sizeof(double);
 
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));
+	cudaError_t errA = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
 
-	cudaError_t err = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));
+	cudaError_t errB = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(errB));
 	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy B to device: %s\n", cudaGetErrorString(err));
+	printf("Copy B to device: %s\n", cudaGetErrorString(errB));
 
-	cudaError_t err = cudaMalloc(&d_C.elements, size);
-	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));
+	cudaError_t errC = cudaMalloc(&d_C.elements, size);
+	printf("CUDA malloc C: %s\n", cudaGetErrorString(errC));
 	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy C to device: %s\n", cudaGetErrorString(err));
+	printf("Copy C to device: %s\n", cudaGetErrorString(errC));
 
 // invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	tranposeKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-	err = cudaThreadSynchronize();
+	matDivKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
+	cudaError_t err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
 // read A from device memory
-	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(err));
-	err = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy B off of device: %s\n", cudaGetErrorString(err));
-	err = cudaMemcpy(C.elements, d_C.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy C off of device: %s\n", cudaGetErrorString(err));
+	errA = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy A off of device: %s\n",cudaGetErrorString(errA));
+// read B from device memory
+	errB = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy B off of device: %s\n", cudaGetErrorString(errB));
+// read C from device memory
+	errC = cudaMemcpy(C.elements, d_C.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy C off of device: %s\n", cudaGetErrorString(errC));
 
 // free device memory
 	cudaFree(d_A.elements);
 	cudaFree(d_B.elements);
 	cudaFree(d_C.elements);
 }
+
