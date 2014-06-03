@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32
 
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
