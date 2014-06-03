@@ -3,7 +3,7 @@
 #include <float.h>
 
 #define BLOCK_SIZE 1024
-
+#define BLOCK_SIZE_DIM2 32
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
 typedef struct {
@@ -68,6 +68,13 @@ void maxReduceKernel(double *elements, int size, double *d_part) {
 }*/
 
 double maxOfMatrix(Matrix A) {
+	cudaEvent_t start, stop;
+	float time;
+	// create events and start the timer
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord( start, 0 );
+
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -111,6 +118,17 @@ double maxOfMatrix(Matrix A) {
 	double max;
 	err = cudaMemcpy(&max, d_max, sizeof(double), cudaMemcpyDeviceToHost);
 	printf("Copy max off of device: %s\n",cudaGetErrorString(err));
+	
+	// stop the timer
+	cudaEventRecord( stop, 0 );
+	cudaEventSynchronize( stop );
+
+	cudaEventElapsedTime( &time, start, stop );
+	cudaEventDestroy( start );
+	cudaEventDestroy( stop );
+	printf("Time elapsed: %f ms\n", time);
+
+
 
 	// free device memory
 	cudaFree(d_A.elements);
@@ -118,6 +136,57 @@ double maxOfMatrix(Matrix A) {
 	return max;
 }
 
+// matrix populate kernel called by populate()
+__global__
+void populateKernel(Matrix d_A) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if(row > d_A.height || col > d_A.width) return;
+	d_A.elements[row*d_A.width+col] = row*d_A.width+col; 
+}
+
+void populate(Matrix A) {
+	srand(time(0));
+	cudaEvent_t start, stop;
+	float time;
+	// create events and start the timer
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord( start, 0 );
+
+	// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+
+	  //invoke kernel
+	dim3 dimBlock(BLOCK_SIZE_DIM2, BLOCK_SIZE_DIM2);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	populateKernel<<<dimGrid, dimBlock>>>(d_A);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
+
+	// read A from device memory
+	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy A off of device: %s\n",cudaGetErrorString(err));
+
+	// stop the timer
+	cudaEventRecord( stop, 0 );
+	cudaEventSynchronize( stop );
+
+	cudaEventElapsedTime( &time, start, stop );
+	cudaEventDestroy( start );
+	cudaEventDestroy( stop );
+	printf("Time elapsed: %f ms\n", time);
+
+	// free device memory
+	cudaFree(d_A.elements);
+}
 void printMatrix(Matrix A) {
 	printf("\n");
 	for (int i=0; i<A.height; i++) {
@@ -129,21 +198,23 @@ void printMatrix(Matrix A) {
 	printf("\n");
 }
 
-//usage : maxOfMatrix height width element
+//usage : maxOfMatrix height width
 int main(int argc, char* argv[]) {
 	Matrix A;
 	int a1, a2;
 	// Read some values from the commandline
 	a1 = atoi(argv[1]); /* Height of A */
 	a2 = atoi(argv[2]); /* Width of A */
+	if (a1*a2 > 1048576) {
+		printf("Matrices bigger than 1048576 elements are not supported yet\n");
+		return 0;
+	}
 	A.height = a1;
 	A.width = a2;
 	A.elements = (double*)malloc(A.width * A.height * sizeof(double));
-	// give A random values
-	for(int i = 0; i < A.height; i++)
-		for(int j = 0; j < A.width; j++)
-			A.elements[i*A.width + j] = ((double)rand()/(double)(RAND_MAX)) * 10;
-	printMatrix(A);
+	// give A values
+	populate(A);
+	//printMatrix(A);
 	// call zeros
 	double max = maxOfMatrix(A);
 	printf("\nThe max element is: %.4f\n", max);
