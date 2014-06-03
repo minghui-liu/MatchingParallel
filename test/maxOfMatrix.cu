@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <float.h>
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 1024
 
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
@@ -11,53 +12,62 @@ typedef struct {
 	double* elements;
 } Matrix;
 
-__device__ static 
-float atomicMaxf(float* address, float val) {
-    int* address_as_i = (int*) address;
-    int old = *address_as_i, assumed;
-    do {
-        assumed = old;
-        old = ::atomicCAS(address_as_i, assumed,
-            __float_as_int(::fmaxf(val, __int_as_float(assumed))));
-    } while (assumed != old);
-    return __int_as_float(old);
-}
-
-__global__ 
-void max_reduce(const float* const d_array, float* d_max, const size_t elements) {
-    extern __shared__ float shared[];
-
-    int tid = threadIdx.x;
-    int gid = (blockDim.x * blockIdx.x) + tid;
-    shared[tid] = FLT_MIN;
-
-    // load shared memory from global memory
-    if (gid < elements)
-        shared[tid] = d_array[gid];
-    __syncthreads();
-
-    // do max reduction in shared memory
-    for (unsigned int s=blockDim.x/2; s>0; s>>=1) 
-    {
-        if (tid < s && gid < elements)
-            shared[tid] = max(shared[tid], shared[tid + s]);
-        __syncthreads();
-    }
-}
-
-// matrix zeros kernel called by zeros()
 __global__
-void indexOfElementKernel(Matrix d_A, double element, int *index) {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
-	int idx = row*d_A.width+col;
-	if (d_A.elements[idx] == element)
-		*(index) = idx;
+void maxReduceKernel(double *elements, int size, double *d_part) {
+	// Reduction max, works for any blockDim.x:
+	int  thread2;
+	double temp;
+	__shared__ double sdata[BLOCK_SIZE];
+	
+	// Load max from global memory
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < size)
+		sdata[threadIdx.x] = elements[idx];
+	else
+		sdata[threadIdx.x] = DBL_MIN;
+	
+	// Synchronize to make sure data is loaded before starting the comparison
+  __syncthreads();
+
+	int nTotalThreads = BLOCK_SIZE;	// Total number of threads, rounded up to the next power of two
+	 
+	while(nTotalThreads > 1) {
+		int halfPoint = (nTotalThreads >> 1);	// divide by two
+		// only the first half of the threads will be active.
+	 
+		if (threadIdx.x < halfPoint) {
+			thread2 = threadIdx.x + halfPoint;
+
+			// Skipping the fictious threads blockDim.x ... blockDim_2-1
+			if (thread2 < blockDim.x) {
+				// Get the shared value stored by another thread 
+				temp = sdata[thread2];
+				if (temp > sdata[threadIdx.x]) 
+					 sdata[threadIdx.x] = temp;
+			}
+		}
+		__syncthreads();
+	 
+		// Reducing the binary tree size by two:
+		nTotalThreads = halfPoint;
+	}
+	
+	// thread 0 copy the max to d_max
+	if (threadIdx.x == 0) {
+		d_part[blockIdx.x] = sdata[threadIdx.x];
+	}
 }
 
-int indexOfElement(Matrix A, double element) {
-	int index;	
+/*int NearestPowerOf2(int n) {
+  if (!n) return n;  //(0 == 2^0)
+  int x = 1;
+  while(x < n) {
+      x <<= 1;
+  }
+  return x;
+}*/
+
+double maxOfMatrix(Matrix A) {
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -68,29 +78,44 @@ int indexOfElement(Matrix A, double element) {
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
 	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
-	// load index to device memory
-	int *d_index;
-	cudaMemset(d_index, -1, sizeof(int));
-	err = cudaMalloc(&d_index, sizeof(int));
-	printf("CUDA malloc index; %s\n", cudaGetErrorString(err));
-	cudaMemcpy(d_index, &index, sizeof(int), cudaMemcpyHostToDevice);
-	printf("Copy index to device: %s\n", cudaGetErrorString(err));
-	
-	// invoke kernel
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	indexOfElementKernel<<<dimGrid, dimBlock>>>(d_A, element, d_index);
-	err = cudaThreadSynchronize();
-	printf("Run kernel: %s\n", cudaGetErrorString(err));
+	// load d_part to device memory
+	double *d_part;
+	err = cudaMalloc(&d_part, BLOCK_SIZE*sizeof(double));
+	printf("CUDA malloc d_part; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part, DBL_MIN, BLOCK_SIZE*sizeof(double));
+	printf("CUDA memset d_part to DBL_MIN: %s\n", cudaGetErrorString(err));
 
-	// read index from device memory
-	err = cudaMemcpy(&index, d_index, sizeof(int), cudaMemcpyDeviceToHost);
-	printf("Copy index off of device: %s\n",cudaGetErrorString(err));
+	// load d_max to device memory
+	double *d_max;
+	err = cudaMalloc(&d_max, sizeof(double));
+	printf("CUDA malloc d_max; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_max, DBL_MIN, sizeof(double));
+	printf("CUDA memset d_max to DBL_MIN: %s\n", cudaGetErrorString(err));
+
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE);
+	dim3 dimGrid((A.width*A.height + dimBlock.x - 1)/dimBlock.x);
+	//int blockDim_2 = NearestPowerOf2(d_A.width*d_A.height);
+	//printf("nearest power of 2 (blockDim_2): %d\n",blockDim_2);
+	// first pass
+	maxReduceKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
+	// second pass
+	dimGrid = dim3(1);
+	maxReduceKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_max);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
+
+	// read max from device memory
+	double max;
+	err = cudaMemcpy(&max, d_max, sizeof(double), cudaMemcpyDeviceToHost);
+	printf("Copy max off of device: %s\n",cudaGetErrorString(err));
 
 	// free device memory
 	cudaFree(d_A.elements);
-	cudaFree(d_index);
-	return index;
+	cudaFree(d_max);
+	return max;
 }
 
 void printMatrix(Matrix A) {
@@ -104,24 +129,22 @@ void printMatrix(Matrix A) {
 	printf("\n");
 }
 
-//usage : indexOfElement height width element
+//usage : maxOfMatrix height width element
 int main(int argc, char* argv[]) {
 	Matrix A;
 	int a1, a2;
-	double e;
 	// Read some values from the commandline
 	a1 = atoi(argv[1]); /* Height of A */
 	a2 = atoi(argv[2]); /* Width of A */
-	e = atof(argv[3]); // element to search for
 	A.height = a1;
 	A.width = a2;
 	A.elements = (double*)malloc(A.width * A.height * sizeof(double));
 	// give A random values
 	for(int i = 0; i < A.height; i++)
 		for(int j = 0; j < A.width; j++)
-			A.elements[i*A.width + j] = ((double)(rand() % 10));
+			A.elements[i*A.width + j] = ((double)rand()/(double)(RAND_MAX)) * 10;
 	printMatrix(A);
 	// call zeros
-	int index = indexOfElement(A, e);
-	printf("\nThe index of %.4f is: %d\n",e, index);
+	double max = maxOfMatrix(A);
+	printf("\nThe max element is: %.4f\n", max);
 }
