@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
 #define BLOCK_SIZE 32 
+
 
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
@@ -66,6 +68,7 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 	cudaFree(d_A.elements);
 	cudaFree(d_B.elements);
 	cudaFree(d_Out.elements);
+
 }
 
 void printMatrix(Matrix A) {
@@ -78,6 +81,7 @@ void printMatrix(Matrix A) {
 	}
 	printf("\n");
 }
+
 
 //usage : matDiv height width 
 int main(int argc, char* argv[]) {

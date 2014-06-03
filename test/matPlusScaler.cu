@@ -52,6 +52,7 @@ void matPlusScaler(Matrix In, double scaler, Matrix Out) {
 	// free device memory
 	cudaFree(d_In.elements);
 	cudaFree(d_Out.elements);
+
 }
 
 void printMatrix(Matrix A) {
@@ -67,6 +68,7 @@ void printMatrix(Matrix A) {
 
 //usage : matPlusScaler height width scaler
 int main(int argc, char* argv[]) {
+
 	Matrix A, B;
 	int a1, a2;
 	// Read some values from the commandline
@@ -81,9 +83,10 @@ int main(int argc, char* argv[]) {
 	for(int i = 0; i < A.height; i++)
 		for(int j = 0; j < A.width; j++)
 			A.elements[i*A.width + j] = ((double)rand()/(double)(RAND_MAX)) * 10;
-	
+
 	printMatrix(A);
 	// call matPlusScaler()
 	matPlusScaler(A, scaler, B);
+
 	printMatrix(B);
 }

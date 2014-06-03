@@ -65,9 +65,11 @@ void printMatrix(Matrix A) {
 	printf("\n");
 }
 
+
 //usage : matTimesScaler height width scaler
 int main(int argc, char* argv[]) {
 	Matrix A, B;
+
 	int a1, a2;
 	// Read some values from the commandline
 	a1 = atoi(argv[1]); /* Height of A */
@@ -75,6 +77,7 @@ int main(int argc, char* argv[]) {
 	double scaler = atof(argv[3]); // scaler
 	B.height = A.height = a1;
 	B.width = A.width = a2;
+
 	A.elements = (double*)malloc(A.width * A.height * sizeof(double));
 	B.elements = (double*)malloc(B.width * B.height * sizeof(double));
 	// give A random values
@@ -85,5 +88,6 @@ int main(int argc, char* argv[]) {
 	printMatrix(A);
 	// call matTimesScaler()
 	matTimesScaler(A, scaler, B);
+
 	printMatrix(B);
 }
