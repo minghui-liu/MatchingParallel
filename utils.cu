@@ -308,7 +308,7 @@ void matSubKernel(Matrix d_A, Matrix d_B, Matrix d_C){
 int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	d_C.elements[row*A.width + col] = d_A.elements[row*A.width + col] - d_B.elements[row*A.width + col];
+	d_C.elements[row*d_A.width + col] = d_A.elements[row*d_A.width + col] - d_B.elements[row*d_A.width + col];
 }
 
 void matSub(Matrix A, Matrix B, Matrix C){
@@ -330,12 +330,12 @@ void matSub(Matrix A, Matrix B, Matrix C){
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
 	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
-	cudaError_t err = cudaMalloc(&d_B.elements, size);
+	err = cudaMalloc(&d_B.elements, size);
 	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
 	printf("Copy B to device: %s\n", cudaGetErrorString(err));
 
-	cudaError_t err = cudaMalloc(&d_C.elements, size);
+	err = cudaMalloc(&d_C.elements, size);
 	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);
 	printf("Copy C to device: %s\n", cudaGetErrorString(err));
@@ -506,14 +506,6 @@ void matPlusScaler(Matrix In, double scaler, Matrix Out) {
 	cudaFree(d_In.elements);
 	cudaFree(d_Out.elements);
 
-}
-
-__global__
-void matDivKernel(Matrix d_A, Matrix d_B, Matrix d_C){
-int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
-	d_C.elements[row*d_C.width + col] = d_A.elements[row*d_A.width + col] / d_B.elements[row*d_B.width + col];
 }
 
 // matrix matDiv kernel called by matDiv()
