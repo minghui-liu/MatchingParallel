@@ -11,7 +11,7 @@ typedef struct {
 	double* elements;
 } Matrix;
 
-// matrix zeros kernel called by zeros()
+// matrix zeros kernel called by indexOfElement()
 __global__
 void indexOfElementKernel(Matrix d_A, double element, int *index) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
