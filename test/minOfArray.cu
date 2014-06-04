@@ -6,26 +6,20 @@
 #define BLOCK_SIZE_DIM2 32
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
-/*typedef struct {
-  int width;
-  int height;
-	double* elements;
-} Matrix;
-*/
 
 __global__
-void minReduceKernel(double *elements, int size, double *d_part) {
-	// Reduction max, works for any blockDim.x:
+void minArrayKernel(double *elements, int size, double *d_part) {
+	// Reduction min, works for any blockDim.x:
 	int  thread2;
 	double temp;
 	__shared__ double sdata[BLOCK_SIZE];
 	
-	// Load max from global memory
+	// Load min from global memory
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < size)
 		sdata[threadIdx.x] = elements[idx];
 	else
-		sdata[threadIdx.x] = DBL_MIN;
+		sdata[threadIdx.x] = DBL_MAX;
 	
 	// Synchronize to make sure data is loaded before starting the comparison
   __syncthreads();
@@ -53,20 +47,11 @@ void minReduceKernel(double *elements, int size, double *d_part) {
 		nTotalThreads = halfPoint;
 	}
 	
-	// thread 0 copy the max to d_max
+	// thread 0 copy the min to d_min
 	if (threadIdx.x == 0) {
 		d_part[blockIdx.x] = sdata[threadIdx.x];
 	}
 }
-
-/*int NearestPowerOf2(int n) {
-  if (!n) return n;  //(0 == 2^0)
-  int x = 1;
-  while(x < n) {
-      x <<= 1;
-  }
-  return x;
-}*/
 
 double minOfArray(double* A, int elements) {
 	cudaEvent_t start, stop;
@@ -88,35 +73,34 @@ double minOfArray(double* A, int elements) {
 	double *d_part;
 	err = cudaMalloc(&d_part, BLOCK_SIZE*sizeof(double));
 	printf("CUDA malloc d_part; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_part, DBL_MIN, BLOCK_SIZE*sizeof(double));
-	printf("CUDA memset d_part to DBL_MIN: %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part, DBL_MAX, BLOCK_SIZE*sizeof(double));
+	printf("CUDA memset d_part to DBL_MAX: %s\n", cudaGetErrorString(err));
 
-	// load d_max to device memory
-	double *d_max;
-	err = cudaMalloc(&d_max, sizeof(double));
-	printf("CUDA malloc d_max; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_max, DBL_MIN, sizeof(double));
-	printf("CUDA memset d_max to DBL_MIN: %s\n", cudaGetErrorString(err));
+	// load d_min to device memory
+	double *d_min;
+	err = cudaMalloc(&d_min, sizeof(double));
+	printf("CUDA malloc d_min; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_min, DBL_MAX, sizeof(double));
+	printf("CUDA memset d_min to DBL_MAX: %s\n", cudaGetErrorString(err));
 
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE);
 	dim3 dimGrid((elements + dimBlock.x - 1)/dimBlock.x);
-	//int blockDim_2 = NearestPowerOf2(d_A.width*d_A.height);
-	//printf("nearest power of 2 (blockDim_2): %d\n",blockDim_2);
+	
 	// first pass
-	minReduceKernel<<<dimGrid, dimBlock>>>(d_A, elements, d_part);
+	minArrayKernel<<<dimGrid, dimBlock>>>(d_A, elements, d_part);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
 	// second pass
 	dimGrid = dim3(1);
-	minReduceKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_max);
+	minArrayKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_min);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
 
-	// read max from device memory
-	double max;
-	err = cudaMemcpy(&max, d_max, sizeof(double), cudaMemcpyDeviceToHost);
-	printf("Copy max off of device: %s\n",cudaGetErrorString(err));
+	// read min from device memory
+	double min;
+	err = cudaMemcpy(&min, d_min, sizeof(double), cudaMemcpyDeviceToHost);
+	printf("Copy min off of device: %s\n",cudaGetErrorString(err));
 	
 	// stop the timer
 	cudaEventRecord( stop, 0 );
@@ -129,8 +113,8 @@ double minOfArray(double* A, int elements) {
 
 	// free device memory
 	cudaFree(d_A);
-	cudaFree(d_max);
-	return max;
+	cudaFree(d_min);
+	return min;
 }
 
 // matrix populate kernel called by populate()
@@ -181,25 +165,15 @@ void populate(double* A, int elements) {
 	// free device memory
 	cudaFree(d_A);
 }
-/*void printMatrix(Matrix A) {
-	printf("\n");
-	for (int i=0; i<A.height; i++) {
-		for (int j=0; j<A.width; j++) {
-			printf("%.4f ", A.elements[i*A.width+j]); 
-		}
-		printf("\n");
-	}
-	printf("\n");
-}*/
 
-//usage : maxOfArray height width
+//usage : minOfArray height width
 int main(int argc, char* argv[]) {
 	double* A;
 	int a1;
 	// Read some values from the commandline
 	a1 = atoi(argv[1]); /* elements in A */
 	if (a1 > 1048576) {
-		printf("Matrices bigger than 1048576 elements are not supported yet\n");
+		printf("Arrays bigger than 1048576 elements are not supported yet\n");
 		return 0;
 	}
 	A = (double*)malloc(a1 * sizeof(double));
@@ -212,5 +186,5 @@ int main(int argc, char* argv[]) {
 	printf("\n");
 	// call zeros
 	double min = minOfArray(A, a1);
-	printf("\nThe max element is: %.4f\n", min);
+	printf("\nThe min element is: %.4f\n", min);
 }
