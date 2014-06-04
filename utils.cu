@@ -142,20 +142,20 @@ void ones(Matrix A) {
 	cudaFree(d_A.elements);
 }
 
-// check if a matrix is symmetric
+// check if a square matrix is symmetric
 __global__
 void isSymmetricKernel(Matrix d_A, Matrix d_B){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
-	if(d_A.elements[row*d_A.width+col] == d_A.elements[row + col*d_A.width])
+	if(row >= d_A.height || col >= d_A.width) return;
+	if(d_A.elements[row*d_A.width + col] == d_A.elements[row + col*d_A.width])
 		return;
 	else
 		d_B.elements[row*d_B.width + col] = 1;
 }
 
-void isSymmetric(Matrix A, Matrix B) {
+bool isSymmetric(Matrix A, Matrix B) {
 // load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -193,6 +193,15 @@ void isSymmetric(Matrix A, Matrix B) {
 // free device memory
 	cudaFree(d_A.elements);
 	cudaFree(d_B.elements);
+
+	for(int i=1; i<A.height; i++){
+		for( int j=0; j<i; j++){
+			if(B.elements[i*B.width + j] != 0){
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 // check if a matrix is symmetric
@@ -201,7 +210,7 @@ void isSymmetricEpsKernel(Matrix d_A, Matrix d_B, double eps){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
+	if(row >= d_A.height || col >= d_A.width) return;
 	if(d_A.elements[row*d_A.width+col] + eps >= d_A.elements[row + col*d_A.width] || 
 		d_A.elements[row*d_A.width+col] - eps <= d_A.elements[row + col*d_A.width])
 		return;
@@ -209,7 +218,7 @@ void isSymmetricEpsKernel(Matrix d_A, Matrix d_B, double eps){
 		d_B.elements[row*d_B.width + col] = 1;
 }
 
-void isSymmetricEps(Matrix A, Matrix B, double eps) {
+bool isSymmetricEps(Matrix A, Matrix B, double eps) {
 // load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -247,6 +256,16 @@ void isSymmetricEps(Matrix A, Matrix B, double eps) {
 // free device memory
 	cudaFree(d_A.elements);
 	cudaFree(d_B.elements);
+
+	for(int i=1; i<A.height; i++){
+		for( int j=0; j<i; j++){
+			if(B.elements[i*B.width + j] != 0){
+				return false;
+			}
+		}
+	}
+	return true;
+
 }
 
 //create an m-by-n tiling of a given matrix

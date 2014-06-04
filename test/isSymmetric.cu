@@ -18,14 +18,14 @@ void isSymmetricKernel(Matrix d_A, Matrix d_B){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
-	if(d_A.elements[row*d_A.width+col] == d_A.elements[row + col*d_A.width])
+	if(row >= d_A.height || col >= d_A.width) return;
+	if(d_A.elements[row*d_A.width + col] == d_A.elements[row + col*d_A.width])
 		return;
 	else
 		d_B.elements[row*d_B.width + col] = 1;
 }
 
-void isSymmetric(Matrix A, Matrix B) {
+bool isSymmetric(Matrix A, Matrix B) {
 // load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -63,6 +63,15 @@ void isSymmetric(Matrix A, Matrix B) {
 // free device memory
 	cudaFree(d_A.elements);
 	cudaFree(d_B.elements);
+
+	for(int i=1; i<A.height; i++){
+		for( int j=0; j<i; j++){
+			if(B.elements[i*B.width + j] != 0){
+				return false;
+			}
+		}
+	}
+	return true;
 }
 
 void printMatrix(Matrix A) {
@@ -95,27 +104,15 @@ int main(int argc, char* argv[]) {
 	B.elements = (double*)malloc(B.width * B.height * sizeof(double));
 	// give A random values and B zeros
 	for(int i = 0; i < A.height; i++){
-		for(int j = 0; j < A.width; j++){
+		for(int j = 0; j <= i; j++){
 			A.elements[i*A.width + j] = ((double)rand()/(double)(RAND_MAX)) * 10;
+			A.elements[j*A.width + i] = A.elements[i*A.width + j];
 			B.elements[i*B.width + j] = 0;
 		}
 	}
 	// call isSymmetric
-	isSymmetric(A, B);
+	bool test =	isSymmetric(A, B);
 	printMatrix(A);
-	int max = 0;
-	for(int i=1; i<A.height; i++){
-		for( int j=0; j<i; j++){
-			if(B.elements[i*B.width + j] != 0){
-				max = 1;
-				break;
-			}
-		}
-		if(max == 1)
-			break;
-	}
-	if(max == 1)
-		printf("The matrix is not symmetric\n");
-	else
-		printf("The matrix is symmetric\n");
+	printMatrix(B);
+	printf("%i \n", test);
 }
