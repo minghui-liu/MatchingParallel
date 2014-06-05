@@ -142,7 +142,7 @@ void ones(Matrix A) {
 	cudaFree(d_A.elements);
 }
 
-// check if a matrix is symmetric
+// check if a square matrix is symmetric
 __global__
 void isSymmetricKernel(Matrix d_A, Matrix d_B){
 
@@ -239,6 +239,7 @@ int isSymmetricEps(Matrix A, int *result, double eps) {
 	cudaFree(d_result);
 	
 	return result;
+
 }
 
 //create an m-by-n tiling of a given matrix
