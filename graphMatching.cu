@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <math.h>
-#include "utils.cu"
+#include "test_utils.cu"
+//#include "utils.cu"
 //#include "hypergraphMatching.cu"
 
 
