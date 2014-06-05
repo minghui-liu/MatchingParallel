@@ -52,17 +52,43 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, Matrix X){
 
 } // end of function
 
+__global__
+void unconstrainedKernel(Matrix d_X){
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = row*d_A.width+col;
+	if(row > d_A.height || col > d_A.width) return;
+	if(d_X.elements[idx] < EPS)
+		d_X.elements[idx] = EPS;
+}
+
 void unconstrainedP(Matrix Y, Matrix H, Matrix X){
 
 	matDiv(Y, H, X);
+	
+// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, X.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	zerosKernel<<<dimGrid, dimBlock>>>(d_A);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
-	for(int i=0; i < X.width; i++){
-		for(int j=0; j < X.height; j++){
-			if(X.elements[i*X.height + j] < EPS){
-				X.elements[i*X.height + j] = EPS);
-			}
-		}
-	}
+	// read A from device memory
+	err = cudaMemcpy(X.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy C off of device: %s\n",cudaGetErrorString(err));
+
+	// free device memory
+	cudaFree(d_A.elements);
 
 } // end of function
 
@@ -206,13 +232,11 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	double* maxRowSumT.elements = (double*)malloc(size/n);
 
 //for t = 1 : maxLoops
-	for(int t=0; t < 10; t++){
+	for(int t=0; t < 50; t++){
 
 // Max row sum
 	// H1 = lambda1 - (Y ./ (F3+eps));
-		matPlusScaler(F3, EPS, F3eps);
-		matDiv(Y, F3eps, YdivF3eps);
-		matSub(lambda1, YdivF3eps, H1);
+		H(lambda1, Y, F3, H1);
 
 	//F1 = maxColSumP(Y', -H1', maxRowSum', precision)';
 		//-H1'
@@ -228,29 +252,22 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(F1t, F1);
 
 	// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
-		matPlusScaler(F1, EPS, F1eps);
-		matDiv(Y, F1eps, YdivF1eps);
-		matSub(lambda1, YdivF3eps, lambda1);
-		matAdd(lambda1, YdivF1eps, lambda1);
+		lambda(lambda1, Y, F3, F1, lambda1);
 
 // Max col sum 
 	// H2 = lambda2 - (Y ./ (F1+eps));
-		matPlusScaler(F1, EPS, F1eps);
-		matSub(lambda2, YdivF1eps, H2);
+		H(lambda2, Y, F1, H2);
 
 	// F2 = maxColSumP (Y, -H2, maxColSum, precision);
 		matTimesScaler(H2, -1, negH2);
 		maxColSumP(Y, negH2, maxColSum, precision, F2);
 
-	// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));		
-		matPlusScaler(F2, EPS, F2eps);		 
-		matDiv(Y, F2eps, YdivF2eps);
-		matSub(lambda2, YdivF1eps, lambda2);
-		matAdd(lambda2, YdivF2eps, lambda2);
+	// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));
+		lambda(lambda2, Y, F1, F2, lambda2);
 
 // Total sum
 	// H3 = lambda3 - (Y ./ (F2 + eps));
-		matSub(m, n, lambda3, YdivF2eps, H3);
+		H(lambda3, Y, F2, H3);
 
 		for(int i = 0; i < m*n; i++){
 			Yv.elements[i] = Y.elements[i];
@@ -262,10 +279,7 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		reshape(X, m, n, F3);
 
 	//lambda3 = lambda3 - (Y ./ (F2+eps)) + (Y ./ (F3+eps));
-		matPlusScaler(F3, EPS, F3eps);
-		matDiv(Y, F3eps, YdivF3eps);
-		matSub(lambda3, YdivF2eps, lambda3);
-		matAdd(lambda3, YdivF3eps, lambda3);
+		lambda(lambda3, Y, F2, F3, lambda3);
 
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
@@ -277,13 +291,13 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 
 	} // end of t for loop
 
+	Matrix F;
+	F.width = F1.width;
+	F.height = F1.height;
+	double* F.elements = (double*)malloc(size);
+
 // F = (F1 + F2 + F3) / 3;
-	matAdd(F1, F2, F);
-	matAdd(F, F3, F);
-	double* Fdiv = (double*) malloc(size);
-	ones(Fdiv);
-	matTimesScaler(Fdiv, 3, Fdiv);
-	matDiv(F, Fdiv, F);
+	F(F1, F2, F3, F);
 
 	cudaFree(lambda1);
 	cudaFree(lambda2);
@@ -313,5 +327,226 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	cudaFree(Fdiff1);
 	cudaFree(Fdiff2);
 	cudaFree(Fdiv);
+
+}
+
+// matrix matDiv kernel called by matDiv()
+__global__
+void HKernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_Out) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = row*d_A.width+col;
+	if(row > d_A.height || col > d_A.width) return;
+	d_Out.elements[idx] = d_A.elements[idx] - (d_B.elements[idx] / (d_C.elements[idx]+EPS));
+}
+
+void H(Matrix A, Matrix B, Matrix C, Matrix Out) {
+	if (A.width != B.width || A.height != B.height) {
+		printf("Input matrices must have the same dimension!\n");
+		return;
+	}
+	// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix A to device: %s\n", cudaGetErrorString(err));
+	
+	// load B to device memory
+	Matrix d_B;
+	d_B.width = B.width;
+	d_B.height = B.height;
+	err = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix B to device: %s\n", cudaGetErrorString(err));
+
+	// load C to device memory
+	Matrix d_C;
+	d_C.width = C.width;
+	d_C.height = C.height;
+	err = cudaMalloc(&d_C.elements, size);
+	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix C to device: %s\n", cudaGetErrorString(err));
+	
+	// allocate Out in device memory
+	Matrix d_Out;
+	d_Out.width = Out.width; d_Out.height = Out.height;
+	size = Out.width * Out.height * sizeof(double);
+	cudaMalloc(&d_Out.elements, size);
+
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	H1Kernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C, d_Out);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
+
+	// read Out from device memory
+	err = cudaMemcpy(Out.elements, d_Out.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy output matrix off of device: %s\n",cudaGetErrorString(err));
+
+	// free device memory
+	cudaFree(d_A.elements);
+	cudaFree(d_B.elements);
+	cudaFree(d_C.elements);
+	cudaFree(d_Out.elements);
+
+}
+
+// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
+		matPlusScaler(F1, EPS, F1eps);
+		matDiv(Y, F1eps, YdivF1eps);
+		matSub(lambda1, YdivF3eps, lambda1);
+		matAdd(lambda1, YdivF1eps, lambda1);
+
+// matrix lambda kernel called by lambda()
+__global__
+void lambdaKernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_D, Matrix d_Out) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = row*d_A.width+col;
+	if(row > d_A.height || col > d_A.width) return;
+	d_Out.elements[idx] = d_A.elements[idx] - (d_B.elements[idx] / (d_C.elements[idx]+EPS)) + (d_B.elements[idx] / (d_D.elements[idx]+EPS));
+}
+
+void lambda(Matrix A, Matrix B, Matrix C, Matrix D, Matrix Out) {
+	if (A.width != B.width || B.width != C.width || A.height != B.height || B.height != C.height){
+		printf("Input matrices must have the same dimension!\n");
+		return;
+	}
+	// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix A to device: %s\n", cudaGetErrorString(err));
+	
+	// load B to device memory
+	Matrix d_B;
+	d_B.width = B.width;
+	d_B.height = B.height;
+	err = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix B to device: %s\n", cudaGetErrorString(err));
+
+	// load C to device memory
+	Matrix d_C;
+	d_C.width = C.width;
+	d_C.height = C.height;
+	err = cudaMalloc(&d_C.elements, size);
+	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix C to device: %s\n", cudaGetErrorString(err));
+	
+	// load C to device memory
+	Matrix d_D;
+	d_D.width = D.width;
+	d_D.height = D.height;
+	err = cudaMalloc(&d_D.elements, size);
+	printf("CUDA malloc D: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_D.elements, D.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix D to device: %s\n", cudaGetErrorString(err));
+
+	// allocate Out in device memory
+	Matrix d_Out;
+	d_Out.width = Out.width; d_Out.height = Out.height;
+	size = Out.width * Out.height * sizeof(double);
+	cudaMalloc(&d_Out.elements, size);
+
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	H1Kernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C, d_D, d_Out);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
+
+	// read Out from device memory
+	err = cudaMemcpy(Out.elements, d_Out.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy output matrix off of device: %s\n",cudaGetErrorString(err));
+
+	// free device memory
+	cudaFree(d_A.elements);
+	cudaFree(d_B.elements);
+	cudaFree(d_C.elements);
+	cudaFree(d_D.elements);
+	cudaFree(d_Out.elements);
+
+}
+
+// F = (F1 + F2 + F3) / 3;
+// matrix lambda kernel called by lambda()
+__global__
+void Fkernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_Out) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = row*d_A.width+col;
+	if(row > d_A.height || col > d_A.width) return;
+	d_Out.elements[idx] = (d_A.elements[idx] + d_B.elements[idx] + d_C.elements[idx]) / 3;
+}
+
+void F(Matrix A, Matrix B, Matrix C, Matrix Out) {
+	if (A.width != B.width || B.width != C.width || A.height != B.height || B.height != C.height){
+		printf("Input matrices must have the same dimension!\n");
+		return;
+	}
+	// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix A to device: %s\n", cudaGetErrorString(err));
+	
+	// load B to device memory
+	Matrix d_B;
+	d_B.width = B.width;
+	d_B.height = B.height;
+	err = cudaMalloc(&d_B.elements, size);
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix B to device: %s\n", cudaGetErrorString(err));
+
+	// load C to device memory
+	Matrix d_C;
+	d_C.width = C.width;
+	d_C.height = C.height;
+	err = cudaMalloc(&d_C.elements, size);
+	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy input matrix C to device: %s\n", cudaGetErrorString(err));
+
+	// allocate Out in device memory
+	Matrix d_Out;
+	d_Out.width = Out.width; d_Out.height = Out.height;
+	size = Out.width * Out.height * sizeof(double);
+	cudaMalloc(&d_Out.elements, size);
+
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	FKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C, d_Out);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
+
+	// read Out from device memory
+	err = cudaMemcpy(Out.elements, d_Out.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy output matrix off of device: %s\n",cudaGetErrorString(err));
+
+	// free device memory
+	cudaFree(d_A.elements);
+	cudaFree(d_B.elements);
+	cudaFree(d_C.elements);
+	cudaFree(d_Out.elements);
 
 }
