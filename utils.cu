@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <float.h>
 
-#define BLOCK_SIZE 16
+#define BLOCK_SIZE 32 
 
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
@@ -53,7 +53,7 @@ void zeros(Matrix A) {
 
 	// read A from device memory
 	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy C off of device: %s\n",cudaGetErrorString(err));
+	printf("Copy A off of device: %s\n",cudaGetErrorString(err));
 
 	// free device memory
 	cudaFree(d_A.elements);
@@ -149,104 +149,96 @@ void isSymmetricKernel(Matrix d_A, Matrix d_B){
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	if(d_A.elements[row*d_A.width+col] == d_A.elements[row + col*d_A.width])
-		return;
-	else
-		d_B.elements[row*d_B.width + col] = 1;
+	if(d_A.elements[row*d_A.width+col] != d_A.elements[row + col*d_A.width])
+		d_results = 0;
 }
 
-void isSymmetric(Matrix A, Matrix B) {
-// load A to device memory
+int isSymmetric(Matrix A, int *result) {
+	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
 	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t errA = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));	
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
-// load B to device memory
-	Matrix d_B;
-	d_B.width = B.width;
-	d_B.height = B.height;
-	cudaError_t errB = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(errB));	
-	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(errB));
+	// load result to device memory
+	int result = 1;
+	int *d_result;
+	err = cudaMalloc(&d_result, sizeof(int));
+	printf("CUDA malloc d_result: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_result, &result, sizeof(int), cudaMemcpyHostToDevice);	
+	printf("Copy result to device: %s\n", cudaGetErrorString(err));
 
-// invoke kernel
+	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	isSymmetricKernel<<<dimGrid, dimBlock>>>(d_A, d_B);
-	cudaError_t err = cudaThreadSynchronize();
+	isSymmetricKernel<<<dimGrid, dimBlock>>>(d_A, d_result);
+	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
-// read A from device memory
-	errA = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(errA));
+	//read result from fdevice memory
+	err = cudaMemcpy(&result, d_result, size, cudaMemcpyDeviceToHost);
+	printf("Copy result off of device: %s\n",cudaGetErrorString(err));
 
-//read B from device memory
-	errB = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(errB));
-
-// free device memory
+	// free device memory
 	cudaFree(d_A.elements);
-	cudaFree(d_B.elements);
+	cudaFree(d_result);
+
+	return result;
 }
 
 // check if a matrix is symmetric
 __global__
-void isSymmetricEpsKernel(Matrix d_A, Matrix d_B, double eps){
+void isSymmetricEpsKernel(Matrix d_A, int *result, double eps){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
-	if(d_A.elements[row*d_A.width+col] + eps >= d_A.elements[row + col*d_A.width] || 
-		d_A.elements[row*d_A.width+col] - eps <= d_A.elements[row + col*d_A.width])
-		return;
-	else
-		d_B.elements[row*d_B.width + col] = 1;
+	if(d_A.elements[row*d_A.width+col] + eps < d_A.elements[row + col*d_A.width] && 
+		d_A.elements[row*d_A.width+col] - eps > d_A.elements[row + col*d_A.width])
+	
+		d_result = 0;
 }
 
-void isSymmetricEps(Matrix A, Matrix B, double eps) {
-// load A to device memory
+int isSymmetricEps(Matrix A, int *result, double eps) {
+	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
 	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t errA = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));	
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
-// load B to device memory
-	Matrix d_B;
-	d_B.width = B.width;
-	d_B.height = B.height;
-	cudaError_t errB = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(errB));	
-	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(errB));
+	// load result to device memory
+	int result = 1;
+	int *result;
+	err = cudaMalloc(&d_results, sizeof(int));
+	printf("CUDA malloc d_result: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_result, &result, sizeof(int), cudaMemcpyHostToDevice);	
+	printf("Copy result to device: %s\n", cudaGetErrorString(err));
 
-// invoke kernel
+	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	isSymmetricEpsKernel<<<dimGrid, dimBlock>>>(d_A, d_B, eps);
-	cudaError_t err = cudaThreadSynchronize();
+	isSymmetricEpsKernel<<<dimGrid, dimBlock>>>(d_A, d_result, eps);
+	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
-// read A from device memory
-	errA = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(errA));
+	// read result from device memory
+	err = cudaMemcpy(&result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
+	printf("Copy result off of device: %s\n",cudaGetErrorString(errA));
 
-//read B from device memory
-	errB = cudaMemcpy(B.elements, d_B.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy A off of device: %s\n",cudaGetErrorString(errB));
 
-// free device memory
+	// free device memory
 	cudaFree(d_A.elements);
-	cudaFree(d_B.elements);
+	cudaFree(d_result);
+	
+	return result;
 }
 
 //create an m-by-n tiling of a given matrix
