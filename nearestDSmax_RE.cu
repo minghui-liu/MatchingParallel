@@ -147,12 +147,8 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	int size = m * n * sizeof(double);
 
 	Matrix lambda1, lambda2, lambda3;
-	lambda1.width = m;
-	lambda2.width = m;
-	lambda3.width = m;
-	lambda1.height = n;
-	lambda2.height = n;
-	lambda3.height = n;
+	lambda1.width = lambda2.width = lambda3.width = m;
+	lambda1.height = lambda2.height = lambda3.height = n;
 	double* lambda1.elements = (double*)malloc(size);
 	double* lambda2.elements = (double*)malloc(size);
 	double* lambda3.elements = (double*)malloc(size);
@@ -162,12 +158,8 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	zeros(lambda3);
 
 	Matrix F1, F2, F3;
-	F1.width = m;
-	F2.width = m;
-	F3.width = m;
-	F1.height = n;
-	F2.height = n;
-	F3.height = n;
+	F1.width = F2.width = F3.width = m;
+	F1.height = F2.height = F3.height = n;
 	double* F1.elements = (double*)malloc(size);
 	double* F2.elements = (double*)malloc(size);
 	double* F3.elements = (double*)malloc(size);
@@ -299,34 +291,34 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 // F = (F1 + F2 + F3) / 3;
 	F(F1, F2, F3, F);
 
-	cudaFree(lambda1);
-	cudaFree(lambda2);
-	cudaFree(lambda3);
-	cudaFree(F1);
-	cudaFree(F2);
-	cudaFree(F3);
-	cudaFree(H1);
-	cudaFree(H2);
-	cudaFree(H3);
-	cudaFree(F1eps);
-	cudaFree(F2eps);
-	cudaFree(F3eps);
-	cudaFree(YdivF1eps);
-	cudaFree(YdivF2eps);
-	cudaFree(YdivF3eps);
-	cudaFree(H1t);
-	cudaFree(negH1t);
-	cudaFree(negH2);
-	cudaFree(negH3);
-	cudaFree(Yt);
-	cudaFree(maxRowSumT);
-	cudaFree(F1t);
-	cudaFree(X);
-	cudaFree(Yv);
-	cudaFree(Xp);
-	cudaFree(Fdiff1);
-	cudaFree(Fdiff2);
-	cudaFree(Fdiv);
+	free(lambda1);
+	free(lambda2);
+	free(lambda3);
+	free(F1);
+	free(F2);
+	free(F3);
+	free(H1);
+	free(H2);
+	free(H3);
+	free(F1eps);
+	free(F2eps);
+	free(F3eps);
+	free(YdivF1eps);
+	free(YdivF2eps);
+	free(YdivF3eps);
+	free(H1t);
+	free(negH1t);
+	free(negH2);
+	free(negH3);
+	free(Yt);
+	free(maxRowSumT);
+	free(F1t);
+	free(X);
+	free(Yv);
+	free(Xp);
+	free(Fdiff1);
+	free(Fdiff2);
+	free(Fdiv);
 
 }
 
