@@ -9,14 +9,14 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include "graphMatching.c"
-#include "utils.c"
+#include "graphMatching.cu"
+#include "utils.cu"
 
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 32
 #define BLOCK_SIZE_DIM2 32
 #define EPS 2.2204e-16
 #define PI 3.14159265
-#define TEST_SIZE 1024
+#define TEST_SIZE 32768
 
 typedef struct {
   int width;
@@ -134,8 +134,6 @@ void neighborDistances(Matrix G, Matrix dist){
 
 void main(){
 
-	clock_t start = clock(), diff;
-
 	srand(time(0));
 
 //create random set of points
@@ -161,6 +159,14 @@ void main(){
 
 //distort the graph for testing purposes
 	graphDistortion(G1, G2, 0, 0);
+
+//start timer
+	float time;
+	cudaEvent_t start, stop;
+
+	HANDLE_ERROR(cudaEventCreate(&start));
+	HANDLE_ERROR(cudaEventCreate(&stop));
+	HANDLE_ERROR(cudaEventRecord(start, 0));
 
 //calculate the distances to each neighbor
 	Matrix neighborDist1, neighborDist2;
@@ -204,8 +210,10 @@ void main(){
 	free(Z);
 	free(Y);
 
-	diff = clock() - start;
-	int msec = diff * 1000 / CLOCKS_PER_SEC;
-	printf("Time taken %d seconds %d milliseconds\n", msec/1000, msec%1000);
+	HANDLE_ERROR(cudaEventRecord(stop, 0));
+	HANDLE_ERROR(cudaEventSynchronize(stop));
+	HANDLE_ERROR(cudaEventElapsedTime(&time, start, stop));
+
+	printf("Time to generate:  %3.1f ms \n", time);
 
 }
