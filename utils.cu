@@ -75,7 +75,7 @@ void transpose(Matrix In, Matrix Out){
 	d_In.height = In.height;
 	size_t size = In.width * In.height * sizeof(double);
 
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	printf("CUDA malloc In: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);
 	printf("Copy In to device: %s\n", cudaGetErrorString(err));
@@ -90,7 +90,7 @@ void transpose(Matrix In, Matrix Out){
 
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	dim3 dimGrid( (In.width + dimBlock.x - 1)/dimBlock.x, (In.height + dimBlock.y - 1)/dimBlock.y );
 	transposeKernel<<<dimGrid, dimBlock>>>(d_In, d_Out);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
@@ -141,16 +141,16 @@ void ones(Matrix A) {
 
 // check if a square matrix is symmetric
 __global__
-void isSymmetricKernel(Matrix d_A, Matrix d_B){
+void isSymmetricKernel(Matrix d_A, int* d_result){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row > d_A.height || col > d_A.width) return;
 	if(d_A.elements[row*d_A.width+col] != d_A.elements[row + col*d_A.width])
-		d_results = 0;
+		d_result = 0;
 }
 
-int isSymmetric(Matrix A, int *result) {
+int isSymmetric(Matrix A) {
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -189,7 +189,7 @@ int isSymmetric(Matrix A, int *result) {
 
 // check if a matrix is symmetric
 __global__
-void isSymmetricEpsKernel(Matrix d_A, int *result, double eps){
+void isSymmetricEpsKernel(Matrix d_A, int *d_result, double eps){
 
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -200,7 +200,7 @@ void isSymmetricEpsKernel(Matrix d_A, int *result, double eps){
 		d_result = 0;
 }
 
-int isSymmetricEps(Matrix A, int *result, double eps) {
+int isSymmetricEps(Matrix A, double eps) {
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -213,8 +213,8 @@ int isSymmetricEps(Matrix A, int *result, double eps) {
 
 	// load result to device memory
 	int result = 1;
-	int *result;
-	err = cudaMalloc(&d_results, sizeof(int));
+	int *d_result;
+	err = cudaMalloc(&d_result, sizeof(int));
 	printf("CUDA malloc d_result: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_result, &result, sizeof(int), cudaMemcpyHostToDevice);	
 	printf("Copy result to device: %s\n", cudaGetErrorString(err));
@@ -228,7 +228,7 @@ int isSymmetricEps(Matrix A, int *result, double eps) {
 
 	// read result from device memory
 	err = cudaMemcpy(&result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
-	printf("Copy result off of device: %s\n",cudaGetErrorString(errA));
+	printf("Copy result off of device: %s\n",cudaGetErrorString(err));
 
 
 	// free device memory
@@ -246,7 +246,6 @@ void repmatKernel(Matrix d_A, Matrix d_B){
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_A.height || col >= d_A.width) return;
 	int h_reps = d_B.width / d_A.width;
-p
 	int v_reps = d_B.height / d_A.height;
 	for(int i=0; i < h_reps; i++){
 		for(int j=0; j < v_reps; j++){
@@ -275,14 +274,14 @@ void repmat(Matrix In, int m, int n, Matrix Out){
 	d_Out.width = In.width * n;
 	d_Out.height = In.height * m;
 	size = d_Out.width * d_Out.height * sizeof(double);
-	err = cudaMalloc(&d_B.elements, size);
+	err = cudaMalloc(&d_Out.elements, size);
 	printf("CUDA malloc d_Out: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_Out.elements, Out.elements, size, cudaMemcpyHostToDevice);
 	printf("Copy d_Out to device: %s\n", cudaGetErrorString(err));
 
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	dim3 dimGrid( (In.width + dimBlock.x - 1)/dimBlock.x, (In.height + dimBlock.y - 1)/dimBlock.y );
 	repmatKernel<<<dimGrid, dimBlock>>>(d_In, d_Out);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
@@ -370,32 +369,32 @@ void matAdd(Matrix A, Matrix B, Matrix C){
 	size_t size = A.width * A.height * sizeof(double);
 
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(errA));
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy A to device: %s\n", cudaGetErrorString(errA));
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
 	err = cudaMalloc(&d_B.elements, size);
-	printf("CUDA malloc B: %s\n", cudaGetErrorString(errB));
+	printf("CUDA malloc B: %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_B.elements, B.elements, size, cudaMemcpyHostToDevice);
-	printf("Copy B to device: %s\n", cudaGetErrorString(errB));
+	printf("Copy B to device: %s\n", cudaGetErrorString(err));
 	
 	// allocate C on device memory
 	Matrix d_C;
 	d_C.width = C.width;
 	d_C.height = C.height;
 	err = cudaMalloc(&d_C.elements, size);
-	printf("CUDA malloc C: %s\n", cudaGetErrorString(errC));
+	printf("CUDA malloc C: %s\n", cudaGetErrorString(err));
 
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
 	matAddKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C);
-	cudaError_t err = cudaThreadSynchronize();
+	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
 	// read C from device memory
 	err = cudaMemcpy(C.elements, d_C.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy C off of device: %s\n", cudaGetErrorString(errC));
+	printf("Copy C off of device: %s\n", cudaGetErrorString(err));
 
 	// free device memory
 	cudaFree(d_A.elements);
