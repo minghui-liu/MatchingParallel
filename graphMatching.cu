@@ -1,9 +1,21 @@
 #include <stdio.h>
 #include <math.h>
-#include "test_utils.cu"
-//#include "utils.cu"
+//#include "test_utils.cu"
 //#include "hypergraphMatching.cu"
+#include "k_utils.cu"
 
+#define BLOCK_SIZE 32
+
+/*__device__ double atomicAdd(double* address, double val) {
+	unsigned long long int* address_as_ull = (unsigned long long int*)address;
+	unsigned long long int old = *address_as_ull, assumed;
+	do {
+		assumed = old;
+		old = atomicCAS(address_as_ull, assumed,__double_as_longlong(val +
+		__longlong_as_double(assumed)));
+	} while (assumed != old);
+	return __longlong_as_double(old);
+}*/
 
 __global__
 void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
@@ -28,19 +40,64 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	d_D.elements = (double*)malloc(d_D.width * d_D.height * sizeof(double));
 	d_D1.elements = (double*)malloc(d_D1.width * d_D1.height * sizeof(double));
 	d_D2.elements = (double*)malloc(d_D2.width * d_D2.height * sizeof(double));
+	
 	// calculate D
-	getCol(d_G1, d_G1_col, y);
-	getRow(d_G2t, d_G2t_row, x);
-	repmat(d_G1_col, 1, d_G2t.width, d_D1);
-	repmat(d_G2t_row, d_G1_col, 1, d_D2);
-	matSub(d_D1, d_D2, d_D);
+	
+	// G1(:,i) invoke getCol kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (d_G1.width + dimBlock.x - 1)/dimBlock.x, (d_G1.height + dimBlock.y - 1)/dimBlock.y );
+	getColKernel<<<dimGrid, dimBlock>>>(d_G1, d_G1_col, y);
+	/*cudaError_t err = cudaThreadSynchronize();
+	printf("Run getCol kernel: %s\n", cudaGetErrorString(err));*/
+	
+	// G2t(j,:) invoke getRow kernel
+	dimGrid.x = (d_G2t.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_G2t.height + dimBlock.y - 1)/dimBlock.y;
+	getRowKernel<<<dimGrid, dimBlock>>>(d_G2t, d_G2t_row, x);
+	/*err = cudaThreadSynchronize();
+	printf("Run getRow kernel: %s\n", cudaGetErrorString(err));*/
+	
+	// repmat(G1(:,i),1,n2) invoke repmat kernel
+	dimGrid.x = (d_G1_col.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_G1_col.height + dimBlock.y - 1)/dimBlock.y;
+	repmatKernel<<<dimGrid, dimBlock>>>(d_G1_col, 1, d_G1.width, d_D1);
+	/*err = cudaThreadSynchronize();
+	printf("Run repmat kernel: %s\n", cudaGetErrorString(err));*/
+
+	// repmat(G2t(j,:),n1,1) invoke repmat kernel
+	dimGrid.x = (d_G2t_row.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_G2t_row.height + dimBlock.y - 1)/dimBlock.y;
+	repmatKernel<<<dimGrid, dimBlock>>>(d_G2t_row, d_G2t.width, 1, d_D2);
+	/*err = cudaThreadSynchronize();
+	printf("Run repmat kernel: %s\n", cudaGetErrorString(err));*/
+	
+	// d_D1 - d_D2 invoke matSub kernel
+	dimGrid.x = (d_D1.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_D1.height + dimBlock.y - 1)/dimBlock.y;
+	matSubKernel<<<dimGrid, dimBlock>>>(d_D1, d_D2, d_D);
+	/*err = cudaThreadSynchronize();
+	printf("Run matSub kernel: %s\n", cudaGetErrorString(err));*/
 		
-	// exp((-d.*d)./sigma)	
-	int offset_D = y * d_D.width + x;
-	*(d_D + offset_D) = exp(-(*(d_D + offset_D)) * (*(d_D + offset_D)) / sigma); 
+	// exp((-d.*d)./sigma) invoke exp kernel
+	dimGrid.x = (d_D.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_D.height + dimBlock.y - 1)/dimBlock.y;
+	expKernel<<<dimGrid, dimBlock>>>(d_D, sigma);
+	/*err = cudaThreadSynchronize();
+	printf("Run exp kernel: %s\n", cudaGetErrorString(err));*/
+	
 	// write to Y
-	int offset_Y = y * d_Y.width + x;
-	*(d_Y + offset_Y) += *(d_D + offset_D);
+	dimGrid.x = (d_D.width + dimBlock.x - 1)/dimBlock.x;
+	dimGrid.y = (d_D.height + dimBlock.y - 1)/dimBlock.y;
+	matAddKernel<<<dimGrid, dimBlock>>>(d_Y, d_D, d_Y);
+	/*err = cudaThreadSynchronize();
+	printf("Run matAdd kernel: %s\n", cudaGetErrorString(err));*/
+	
+	// free memory space
+	free(d_G1_col.elements);
+	free(d_G2t_row.elements);
+	free(d_D.elements);
+	free(d_D1.elements);
+	free(d_D2.elements);
 }
 
 void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matrix X, Matrix Z, Matrix Y) {
@@ -71,12 +128,12 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	
 	// load G1 to device memory
 	Matrix d_G1;
-	d_G1.width = G1.height;
-	d_G1.height = G1.width;
+	d_G1.width = G1.width;
+	d_G1.height = G1.height;
 	size_t size = d_G1.width * d_G1.height * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_G1.elements, size);
 	printf("CUDA malloc d_G1: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_G1.elements, G1.elements, size, cudaMemcpyHostToDevice);	
+	err = cudaMemcpy(d_G1.elements, G1.elements, size, cudaMemcpyHostToDevice);	
 	printf("Copy G1 to device: %s\n", cudaGetErrorString(err));
 	
 	// load G2 to device memory
@@ -86,7 +143,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	size = d_G2.width * d_G2.height * sizeof(double);
 	err = cudaMalloc(&d_G2.elements, size);
 	printf("CUDA malloc d_G2: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_G2.elements, G2.elements, size, cudaMemcpyHostToDevice);	
+	err = cudaMemcpy(d_G2.elements, G2.elements, size, cudaMemcpyHostToDevice);	
 	printf("Copy G2 to device: %s\n", cudaGetErrorString(err));
 	
 	// transpose G2	
@@ -98,30 +155,40 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	err = cudaMalloc(&d_G2t.elements, size);
 	printf("CUDA malloc G2t: %s\n", cudaGetErrorString(err));	
 	
-	transpose(G2, d_G2t);
-	
+	// invoke transpose kernel
+	printf("transpose()\n");
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (d_G2.width + dimBlock.x - 1)/dimBlock.x, (d_G2.height + dimBlock.y - 1)/dimBlock.y );
+	transposeKernel<<<dimGrid, dimBlock>>>(d_G2, d_G2t);
+	err = cudaThreadSynchronize();
+	printf("Run transpose kernel: %s\n", cudaGetErrorString(err));
+
 	// make Y an all zero matrix
-	// load Y to device memory
+	// allocate Y on device memory
 	Matrix d_Y;
 	d_Y.height = Y.height;
 	d_Y.width = Y.width; 
 	size = d_Y.width * d_Y.height * sizeof(double);
 	err = cudaMalloc(&d_Y.elements, size);
-	printf("CUDA malloc d_Y: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_Y.elements, Y.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy Y to device: %s\n", cudaGetErrorString(err));
-	zeros(d_Y);
+	printf("CUDA malloc d_Y: %s\n", cudaGetErrorString(err));
+	// invoke zeros kernel
+	dimGrid.x = (d_Y.width+dimBlock.x-1)/dimBlock.x;
+	dimGrid.y = (d_Y.height+dimBlock.y-1)/dimBlock.y;
+	zerosKernel<<<dimGrid, dimBlock>>>(d_Y);
 
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (G1.width+dimBlock.x-1)/dimBlock.x, (G1.height+dimBlock.y-1)/dimBlock.y );
+	dimGrid.x = (G1.width+dimBlock.x-1)/dimBlock.x;
+	dimGrid.y = (G1.height+dimBlock.y-1)/dimBlock.y;
 	marginalize<<<dimGrid, dimBlock>>>(d_G1, d_G2, sigma, d_Y);
 	err = cudaThreadSynchronize();
 	printf("Run marginalize kernel: %s\n", cudaGetErrorString(err));
 
-	size = Y.width * Y.height * sizeof(double);
 	// read Y from device memory
+	size = Y.width * Y.height * sizeof(double);
 	err = cudaMemcpy(Y.elements, d_Y.elements, size, cudaMemcpyDeviceToHost);
 	printf("Copy Y off of device: %s\n",cudaGetErrorString(err));
+	
+	// call hypergraphMatching()
+	
 
 	// free device memory
 	cudaFree(d_G1.elements);
