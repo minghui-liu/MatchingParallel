@@ -2,6 +2,12 @@
 #include "utils.cu"
 #include "nearestDSmax_RE.cu"
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/extrema.h>
+
+#include <iostream>
+
 #define BLOCK_SIZE 32
 
 __global__
@@ -44,18 +50,33 @@ void soft2hard(Matrix d_soft_original, int numberOfMatches, Matrix d_hard) {
 	printf("CUDA malloc d_maxSoft: %s\n", cudaGetErrorString(err));	
 		
 	for (int i=0; i < numberOfMatches; i++) {	
+
 		// maxSoft = max(soft,[],2);
 		// invoke maxOfMatrixRow kernel
-		printf("maxOfMatrixRow()\n");
+/*		printf("maxOfMatrixRow()\n");
 		dimBlock = dim3(BLOCK_SIZE);
 		dimGrid = dim3( (d_maxSoft.height + dimBlock.x - 1)/dimBlock.x );
 		maxOfMatrixRow<<<dimGrid, dimBlock>>>(d_soft, d_maxSoft);
 		err = cudaThreadSynchronize();
 		printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
-		
+*/
+
+		for(int j=0; j < d_soft.width; j++){
+
+			thrust::host_vector<double> H(d_soft.elements + (i * d_soft.width), d_soft.elements + d_soft.width + (i * d_soft.width));
+			thrust::device_vector<double> D = H;
+			thrust::detail::normal_iterator<thrust::device_ptr<double> > maxResult = thrust::max_element(D.begin(), D.end());
+			d_maxSoft.elements[i] = *maxResult;
+
+		}
+			
 		// [dummy,r] = max(maxSoft);
-		double dummy = maxOfMatrix(d_maxSoft);
-		int r = indexOfElement(d_maxSoft, dummy);
+		//double dummy = maxOfMatrix(d_maxSoft);
+
+		thrust::host_vector<double> h_dummy(d_maxSoft.elements, d_maxSoft.elements + d_maxSoft.width);
+		thrust::device_vector<double> d_dummy = h_dummy;
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > dummy = thrust::max_element(d_dummy.begin(), d_dummy.end());
+		int r = indexOfElement(d_maxSoft, *dummy);
 		
 		// soft(r,:) invoke getRow kernel
 		Matrix d_soft_r;
@@ -64,10 +85,14 @@ void soft2hard(Matrix d_soft_original, int numberOfMatches, Matrix d_hard) {
 		dimGrid = dim3( (d_soft.width + dimBlock.x - 1)/dimBlock.x ,(d_soft.height + dimBlock.y - 1)/dimBlock.y );
 		getRowKernel<<<dimGrid, dimBlock>>>(d_soft, d_soft_r, r);
 		// [val,c] = max(soft(r,:));
-		double val = maxOfMatrix(d_soft_r);
-		int c = indexOfElement(d_soft_r, val);
+		//double val = maxOfMatrix(d_soft_r);
+		thrust::host_vector<double> h_val(d_soft_r.elements, d_soft_r.elements + d_soft_r.width);
+		thrust::device_vector<double> d_val = h_val;
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > val = thrust::max_element(d_val.begin(), d_val.end());
+
+		int c = indexOfElement(d_soft_r, *val);
 		
-		if (val < 0) { 
+		if (*val < 0) { 
 			return;
 		}
 		
