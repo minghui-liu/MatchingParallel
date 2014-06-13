@@ -17,6 +17,16 @@
 	return __longlong_as_double(old);
 }*/
 
+// exp kernel
+__global__ 
+void expKernel(Matrix d_D, double sigma) {
+	int col = blockIdx.y * blockDim.y + threadIdx.y;
+	int row = blockIdx.x * blockDim.x + threadIdx.x;
+	int idx = row * d_D.width + col;
+	if(row >= d_D.height || col >= d_D.width) return;
+	d_D.elements[idx] = exp(-d_D.elements[idx] * d_D.elements[idx] / sigma);
+}
+
 __global__
 void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -186,13 +196,35 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	size = Y.width * Y.height * sizeof(double);
 	err = cudaMemcpy(Y.elements, d_Y.elements, size, cudaMemcpyDeviceToHost);
 	printf("Copy Y off of device: %s\n",cudaGetErrorString(err));
-	
-	// call hypergraphMatching()
-	
-
-	// free device memory
+		
+	// free some device memory
 	cudaFree(d_G1.elements);
 	cudaFree(d_G2.elements);
+	cudaFree(d_G2t.elements);
+	
+	// allocate d_X and d_Z on device memory
+	Matrix d_X, d_Z;
+	d_Z.height = d_X.height = Y.height;
+	d_Z.width = d_X.width = Y.width; 
+	size = d_Y.width * d_Y.height * sizeof(double);
+	err = cudaMalloc(&d_X.elements, size);
+	printf("CUDA malloc d_X: %s\n", cudaGetErrorString(err));
+	err = cudaMalloc(&d_Z.elements, size);
+	printf("CUDA malloc d_Z: %s\n", cudaGetErrorString(err));
+	
+	// call hypergraphMatching()
+	hypergraphMatching(d_Y, numberOfMatches, d_X, d_Z);
+	
+	// read X and Z from device memory
+	err = cudaMemcpy(X.elements, d_X.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy X off of device: %s\n",cudaGetErrorString(err));
+	err = cudaMemcpy(Z.elements, d_Z.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy Z off of device: %s\n",cudaGetErrorString(err));
+	
+	// free device memory
+	cudaFree(d_X.elements);
+	cudaFree(d_Y.elements);
+	cudaFree(d_Z.elements);
 }
 
 
