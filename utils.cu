@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <float.h>
 
-#define BLOCK_SIZE 32 
+#pragma once
+#define BLOCK_SIZE 32
+#define BLOCK_SIZE_DIM1 1024
 
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
@@ -29,7 +31,7 @@ __global__
 void zerosKernel(Matrix d_A) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
+	if(row >= d_A.height || col >= d_A.width) return;
 	d_A.elements[row*d_A.width+col] = 0;
 }
 
@@ -59,7 +61,7 @@ void zeros(Matrix A) {
 	cudaFree(d_A.elements);
 }
 
-//matrix transpose kernel called by transpose()
+//matrix transpose kernel
 __global__
 void transposeKernel(Matrix d_A, Matrix d_B){
 	int col = blockIdx.y * blockDim.y + threadIdx.y;
@@ -127,7 +129,7 @@ void ones(Matrix A) {
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
-	zerosKernel<<<dimGrid, dimBlock>>>(d_A);
+	onesKernel<<<dimGrid, dimBlock>>>(d_A);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
@@ -141,16 +143,16 @@ void ones(Matrix A) {
 
 // check if a square matrix is symmetric
 __global__
-void isSymmetricKernel(Matrix d_A, int* d_result){
-
+void isSymmetricKernel(Matrix d_A, int *d_result) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
+	if(row >= d_A.height || col >= d_A.width) return;
 	if(d_A.elements[row*d_A.width+col] != d_A.elements[row + col*d_A.width])
-		d_result = 0;
+		*(d_result) = 0;
 }
 
 int isSymmetric(Matrix A) {
+	printf("isSymmetric()\n");
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;
@@ -177,7 +179,7 @@ int isSymmetric(Matrix A) {
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
 	//read result from fdevice memory
-	err = cudaMemcpy(&result, d_result, size, cudaMemcpyDeviceToHost);
+	err = cudaMemcpy(&result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
 	printf("Copy result off of device: %s\n",cudaGetErrorString(err));
 
 	// free device memory
@@ -280,7 +282,7 @@ void repmat(Matrix In, int m, int n, Matrix Out){
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (In.width + dimBlock.x - 1)/dimBlock.x, (In.height + dimBlock.y - 1)/dimBlock.y );
-	repmatKernel<<<dimGrid, dimBlock>>>(d_In, d_Out);
+	repmatKernel<<<dimGrid, dimBlock>>>(d_In, m, n, d_Out);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
 
@@ -293,11 +295,12 @@ void repmat(Matrix In, int m, int n, Matrix Out){
 	cudaFree(d_Out.elements);
 }
 
+// matSub kernel
 __global__
-void matSubKernel(Matrix d_A, Matrix d_B, Matrix d_C){
-int row = blockIdx.y * blockDim.y + threadIdx.y;
+void matSubKernel(Matrix d_A, Matrix d_B, Matrix d_C) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row > d_A.height || col > d_A.width) return;
+	if(row >= d_A.height || col >= d_A.width) return;
 	d_C.elements[row*d_A.width + col] = d_A.elements[row*d_A.width + col] - d_B.elements[row*d_A.width + col];
 }
 
@@ -346,14 +349,16 @@ void matSub(Matrix A, Matrix B, Matrix C){
 	cudaFree(d_C.elements);
 }
 
-__global__
-void matAddKernel(Matrix d_A, Matrix d_B, Matrix d_C){
 
+// matAdd kernel
+__global__
+void matAddKernel(Matrix d_A, Matrix d_B, Matrix d_C) {
 	int col = blockIdx.y * blockDim.y + threadIdx.y;
 	int row = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_A.height || col >= d_A.width) return;
 	d_C.elements[row*d_C.width + col] = d_A.elements[row*d_A.width + col] + d_B.elements[row*d_B.width + col];
 }
+
 
 void matAdd(Matrix A, Matrix B, Matrix C){
 
@@ -400,7 +405,6 @@ void matAdd(Matrix A, Matrix B, Matrix C){
 	cudaFree(d_C.elements);
 }
 
-
 // matrix matTimesScaler kernel called by matTimesScaler()
 __global__
 void matTimesScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
@@ -410,6 +414,7 @@ void matTimesScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
 	int idx = row * d_In.width +  col;
 	d_Out.elements[idx] = d_In.elements[idx] * scaler;
 }
+
 
 void matTimesScaler(Matrix In, double scaler, Matrix Out) {
 	// load In to device memory
@@ -546,7 +551,8 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 
 }
 
-// matrix getCol kernel called by getCol()
+
+// matrix getCol kernel
 __global__
 void getColKernel(Matrix d_In, Matrix d_Out, int num) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -589,7 +595,7 @@ void getCol(Matrix In, Matrix Out, int num) {
 	cudaFree(d_Out.elements);
 }
 
-// matrix getRow kernel called by getRow()
+// matrix getRow kernel
 __global__
 void getRowKernel(Matrix d_In, Matrix d_Out, int num) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -632,7 +638,8 @@ void getRow(Matrix In, Matrix Out, int num) {
 	cudaFree(d_Out.elements);
 }
 
-// matrix indexOfElement kernel called by indexOfElement()
+
+// matrix indexOfElement kernel
 __global__
 void indexOfElementKernel(Matrix d_A, double element, int *index) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -643,29 +650,19 @@ void indexOfElementKernel(Matrix d_A, double element, int *index) {
 		*(index) = idx;
 }
 
-int indexOfElement(Matrix A, double element) {
-	int index;	
-	// load A to device memory
-	Matrix d_A;
-	d_A.width = A.width;
-	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+int indexOfElement(Matrix d_A, double element) {
+	int index = -1;	
 
-	// load index to device memory
+	// allocate d_index on device memory
 	int *d_index;
-	cudaMemset(d_index, -1, sizeof(int));
-	err = cudaMalloc(&d_index, sizeof(int));
+	cudaError_t err = cudaMalloc(&d_index, sizeof(int));
 	printf("CUDA malloc index; %s\n", cudaGetErrorString(err));
 	cudaMemcpy(d_index, &index, sizeof(int), cudaMemcpyHostToDevice);
 	printf("Copy index to device: %s\n", cudaGetErrorString(err));
 	
 	// invoke kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	dim3 dimGrid( (d_A.width + dimBlock.x - 1)/dimBlock.x, (d_A.height + dimBlock.y - 1)/dimBlock.y );
 	indexOfElementKernel<<<dimGrid, dimBlock>>>(d_A, element, d_index);
 	err = cudaThreadSynchronize();
 	printf("Run kernel: %s\n", cudaGetErrorString(err));
@@ -675,122 +672,10 @@ int indexOfElement(Matrix A, double element) {
 	printf("Copy index off of device: %s\n",cudaGetErrorString(err));
 
 	// free device memory
-	cudaFree(d_A.elements);
 	cudaFree(d_index);
 	return index;
 }
 
-__global__
-void maxReduceKernel(double *elements, int size, double *d_part) {
-	// Reduction max, works for any blockDim.x:
-	int  thread2;
-	double temp;
-	__shared__ double sdata[BLOCK_SIZE];
-	
-	// Load max from global memory
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < size)
-		sdata[threadIdx.x] = elements[idx];
-	else
-		sdata[threadIdx.x] = DBL_MIN;
-	
-	// Synchronize to make sure data is loaded before starting the comparison
-  __syncthreads();
-
-	int nTotalThreads = BLOCK_SIZE;	// Total number of threads, rounded up to the next power of two
-	 
-	while(nTotalThreads > 1) {
-		int halfPoint = (nTotalThreads >> 1);	// divide by two
-		// only the first half of the threads will be active.
-	 
-		if (threadIdx.x < halfPoint) {
-			thread2 = threadIdx.x + halfPoint;
-
-			// Skipping the fictious threads blockDim.x ... blockDim_2-1
-			if (thread2 < blockDim.x) {
-				// Get the shared value stored by another thread 
-				temp = sdata[thread2];
-				if (temp > sdata[threadIdx.x]) 
-					 sdata[threadIdx.x] = temp;
-			}
-		}
-		__syncthreads();
-	 
-		// Reducing the binary tree size by two:
-		nTotalThreads = halfPoint;
-	}
-	
-	// thread 0 copy the max to d_max
-	if (threadIdx.x == 0) {
-		d_part[blockIdx.x] = sdata[threadIdx.x];
-	}
-}
-
-double maxOfMatrix(Matrix A) {
-	cudaEvent_t start, stop;
-	float time;
-	// create events and start the timer
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	cudaEventRecord( start, 0 );
-
-	// load A to device memory
-	Matrix d_A;
-	d_A.width = A.width;
-	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
-
-	// load d_part to device memory
-	double *d_part;
-	err = cudaMalloc(&d_part, BLOCK_SIZE*sizeof(double));
-	printf("CUDA malloc d_part; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_part, DBL_MIN, BLOCK_SIZE*sizeof(double));
-	printf("CUDA memset d_part to DBL_MIN: %s\n", cudaGetErrorString(err));
-
-	// load d_max to device memory
-	double *d_max;
-	err = cudaMalloc(&d_max, sizeof(double));
-	printf("CUDA malloc d_max; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_max, DBL_MIN, sizeof(double));
-	printf("CUDA memset d_max to DBL_MIN: %s\n", cudaGetErrorString(err));
-
-	// invoke kernel
-	dim3 dimBlock(BLOCK_SIZE);
-	dim3 dimGrid((A.width*A.height + dimBlock.x - 1)/dimBlock.x);
-
-	// first pass
-	maxReduceKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part);
-	err = cudaThreadSynchronize();
-	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
-	// second pass
-	dimGrid = dim3(1);
-	maxReduceKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_max);
-	err = cudaThreadSynchronize();
-	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
-
-	// read max from device memory
-	double max;
-	err = cudaMemcpy(&max, d_max, sizeof(double), cudaMemcpyDeviceToHost);
-	printf("Copy max off of device: %s\n",cudaGetErrorString(err));
-	
-	// stop the timer
-	cudaEventRecord( stop, 0 );
-	cudaEventSynchronize( stop );
-
-	cudaEventElapsedTime( &time, start, stop );
-	cudaEventDestroy( start );
-	cudaEventDestroy( stop );
-	printf("Time elapsed: %f ms\n", time);
-
-	// free device memory
-	cudaFree(d_A.elements);
-	cudaFree(d_max);
-	return max;
-}
 
 // matrix reshape kernel called by reshape()
 __global__
@@ -834,6 +719,133 @@ void reshape(Matrix In, Matrix Out) {
 	cudaFree(d_In.elements);
 	cudaFree(d_Out.elements);
 }
+
+__global__
+void maxReduceKernel(double *elements, int size, double *d_part) {
+	int  thread2;
+	double temp;
+	__shared__ double sdata[BLOCK_SIZE_DIM1];
+	
+	// Load max from global memory
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < size)
+		sdata[threadIdx.x] = elements[idx];
+	else
+		sdata[threadIdx.x] = DBL_MIN;
+	
+	// Synchronize to make sure data is loaded before starting the comparison
+  __syncthreads();
+
+	int nTotalThreads = BLOCK_SIZE_DIM1;
+	 
+	while(nTotalThreads > 1) {
+		int halfPoint = (nTotalThreads >> 1);	// divide by two
+		// only the first half of the threads will be active.
+	 
+		if (threadIdx.x < halfPoint) {
+			thread2 = threadIdx.x + halfPoint;
+
+			// Skipping the fictious threads blockDim.x ... blockDim_2-1
+			if (thread2 < blockDim.x) {
+				// Get the shared value stored by another thread 
+				temp = sdata[thread2];
+				if (temp > sdata[threadIdx.x]) 
+					 sdata[threadIdx.x] = temp;
+			}
+		}
+		__syncthreads();
+	 
+		// Reducing the binary tree size by two:
+		nTotalThreads = halfPoint;
+	}
+	
+	// thread 0 copy the max to d_max
+	if (threadIdx.x == 0) {
+		d_part[blockIdx.x] = sdata[threadIdx.x];
+	}
+}
+
+/*int NearestPowerOf2(int n) {
+  if (!n) return n;  //(0 == 2^0)
+  int x = 1;
+  while(x < n) {
+      x <<= 1;
+  }
+  return x;
+}*/
+
+double maxOfMatrix(Matrix d_A) {
+	/*cudaEvent_t start, stop;
+	float time;
+	// create events and start the timer
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	cudaEventRecord( start, 0 );*/
+
+	// allocate d_part1 on device memory
+	double *d_part1;
+	cudaError_t err = cudaMalloc(&d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part1; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, DBL_MIN,  BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part1 to DBL_MIN: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_part2 on device memory
+	double *d_part2;
+	err = cudaMalloc(&d_part2, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part2; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, DBL_MIN, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part2 to DBL_MIN: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_max on device memory
+	double *d_max;
+	err = cudaMalloc(&d_max, sizeof(double));
+	printf("CUDA malloc d_max; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_max, DBL_MIN, sizeof(double));
+	printf("CUDA memset d_max to DBL_MIN: %s\n", cudaGetErrorString(err));
+
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE_DIM1);
+	dim3 dimGrid((d_A.width*d_A.height + dimBlock.x - 1)/dimBlock.x);
+	
+	// first pass
+	maxReduceKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part1);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
+	
+	// second pass
+	dimGrid = dim3(BLOCK_SIZE_DIM1);
+	maxReduceKernel<<<dimGrid, dimBlock>>>(d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1, d_part2);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
+	
+	// third pass
+	dimGrid = dim3(1);
+	maxReduceKernel<<<dimGrid, dimBlock>>>(d_part2, BLOCK_SIZE_DIM1, d_max);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 3rd pass: %s\n", cudaGetErrorString(err));
+
+	// read max from device memory
+	double max;
+	err = cudaMemcpy(&max, d_max, sizeof(double), cudaMemcpyDeviceToHost);
+	printf("Copy max off of device: %s\n",cudaGetErrorString(err));
+	
+	// stop the timer
+	/*cudaEventRecord( stop, 0 );
+	cudaEventSynchronize( stop );
+
+	cudaEventElapsedTime( &time, start, stop );
+	cudaEventDestroy( start );
+	cudaEventDestroy( stop );
+	printf("Time elapsed: %f ms\n", time);*/
+
+	// free device memory
+	cudaFree(d_part1);
+	cudaFree(d_part2);
+	cudaFree(d_max);
+	
+	return max;
+}
+
 
 __global__
 void minReduceKernel(double *elements, int size, double *d_part) {
@@ -1168,13 +1180,11 @@ double arraySum(double* A, int elements) {
 }
 
 __global__
-void matSumKernel(double *elements, int size, double *d_part) {
-	// Reduction sum, works for any blockDim.x:
+void sumReduceKernel(double *elements, int size, double *d_part) {
 	int  thread2;
-	double temp;
-	__shared__ double sdata[BLOCK_SIZE];
+	__shared__ double sdata[BLOCK_SIZE_DIM1];
 	
-	// Load sum from global memory
+	// Load elements from global memory
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < size)
 		sdata[threadIdx.x] = elements[idx];
@@ -1184,7 +1194,7 @@ void matSumKernel(double *elements, int size, double *d_part) {
 	// Synchronize to make sure data is loaded before starting the comparison
   __syncthreads();
 
-	int nTotalThreads = BLOCK_SIZE;	// Total number of threads, rounded up to the next power of two
+	int nTotalThreads = BLOCK_SIZE_DIM1;
 	 
 	while(nTotalThreads > 1) {
 		int halfPoint = (nTotalThreads >> 1);	// divide by two
@@ -1195,10 +1205,8 @@ void matSumKernel(double *elements, int size, double *d_part) {
 
 			// Skipping the fictious threads blockDim.x ... blockDim_2-1
 			if (thread2 < blockDim.x) {
-				// Get the shared value stored by another thread 
-				temp = sdata[thread2];
-				if (temp > sdata[threadIdx.x]) 
-					 sdata[threadIdx.x] += temp;
+				// Get the shared value stored by another thread and sum it to sdata
+				sdata[threadIdx.x] += sdata[thread2];
 			}
 		}
 		__syncthreads();
@@ -1207,38 +1215,44 @@ void matSumKernel(double *elements, int size, double *d_part) {
 		nTotalThreads = halfPoint;
 	}
 	
-	// thread 0 copy the sum to d_sum
+	// thread 0 copy the max to d_max
 	if (threadIdx.x == 0) {
 		d_part[blockIdx.x] = sdata[threadIdx.x];
 	}
 }
 
-double matSum(Matrix A) {
-	cudaEvent_t start, stop;
+/*int NearestPowerOf2(int n) {
+  if (!n) return n;  //(0 == 2^0)
+  int x = 1;
+  while(x < n) {
+      x <<= 1;
+  }
+  return x;
+}*/
+
+double matSum(Matrix d_A) {
+	/*cudaEvent_t start, stop;
 	float time;
 	// create events and start the timer
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
-	cudaEventRecord( start, 0 );
+	cudaEventRecord( start, 0 );*/
 
-	// load A to device memory
-	Matrix d_A;
-	d_A.width = A.width;
-	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
-
-	// load d_part to device memory
-	double *d_part;
-	err = cudaMalloc(&d_part, BLOCK_SIZE*sizeof(double));
-	printf("CUDA malloc d_part; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_part, 0, BLOCK_SIZE*sizeof(double));
-	printf("CUDA memset d_part to 0 %s\n", cudaGetErrorString(err));
-
-	// load d_sum to device memory
+	// allocate d_part1 on device memory
+	double *d_part1;
+	cudaError_t err = cudaMalloc(&d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part1; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, 0,  BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part1 to 0: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_part2 on device memory
+	double *d_part2;
+	err = cudaMalloc(&d_part2, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part2; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, 0, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part2 to 0: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_sum on device memory
 	double *d_sum;
 	err = cudaMalloc(&d_sum, sizeof(double));
 	printf("CUDA malloc d_sum; %s\n", cudaGetErrorString(err));
@@ -1246,18 +1260,25 @@ double matSum(Matrix A) {
 	printf("CUDA memset d_sum to 0: %s\n", cudaGetErrorString(err));
 
 	// invoke kernel
-	dim3 dimBlock(BLOCK_SIZE);
-	dim3 dimGrid((A.width*A.height + dimBlock.x - 1)/dimBlock.x);
-
+	dim3 dimBlock(BLOCK_SIZE_DIM1);
+	dim3 dimGrid((d_A.width*d_A.height + dimBlock.x - 1)/dimBlock.x);
+	
 	// first pass
-	matSumKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part1);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
+	
 	// second pass
-	dimGrid = dim3(1);
-	matSumKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_sum);
+	dimGrid = dim3(BLOCK_SIZE_DIM1);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1, d_part2);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
+	
+	// third pass
+	dimGrid = dim3(1);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_part2, BLOCK_SIZE_DIM1, d_sum);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 3rd pass: %s\n", cudaGetErrorString(err));
 
 	// read sum from device memory
 	double sum;
@@ -1265,16 +1286,42 @@ double matSum(Matrix A) {
 	printf("Copy sum off of device: %s\n",cudaGetErrorString(err));
 	
 	// stop the timer
-	cudaEventRecord( stop, 0 );
+	/*cudaEventRecord( stop, 0 );
 	cudaEventSynchronize( stop );
 
 	cudaEventElapsedTime( &time, start, stop );
 	cudaEventDestroy( start );
 	cudaEventDestroy( stop );
-	printf("Time elapsed: %f ms\n", time);
+	printf("Time elapsed: %f ms\n", time);*/
 
 	// free device memory
-	cudaFree(d_A.elements);
+	cudaFree(d_part1);
+	cudaFree(d_part2);
 	cudaFree(d_sum);
+	
 	return sum;
 }
+
+
+__global__
+void maxOfMatrixRow(Matrix d_A, Matrix d_col) {
+	int row = blockIdx.x * blockDim.x + threadIdx.x;
+	double max = d_A.elements[row*d_A.width];
+	for (int col=0; col<d_A.width; col++) {
+		max = (d_A.elements[row*d_A.width+col] > max)? d_A.elements[row*d_A.width+col] : max;
+	}
+	d_col.elements[row] = max;
+}
+
+
+__global__
+void maxOfMatrixCol(Matrix d_A, Matrix d_row) {
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	double max = d_A.elements[col];
+	for (int row=0; row<d_A.height; row++) {
+		max = (d_A.elements[row*d_A.width+col] > max)? d_A.elements[row*d_A.width+col] : max;
+	}
+	d_row.elements[col] = max;
+}
+
+

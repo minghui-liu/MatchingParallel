@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <float.h>
 
-#define BLOCK_SIZE 1024
-#define BLOCK_SIZE_DIM2 32
+#define BLOCK_SIZE 32
+#define BLOCK_SIZE_DIM1 1024
+
 // Matrices are stored in row-major order:
 // M(row, col) = *(M.elements + row * M.width + col)
 typedef struct {
@@ -13,23 +14,22 @@ typedef struct {
 } Matrix;
 
 __global__
-void matSumKernel(double *elements, int size, double *d_part) {
-	// Reduction sum, works for any blockDim.x:
+void sumReduceKernel(double *elements, int size, double *d_part) {
 	int  thread2;
-	double temp;
-	__shared__ double sdata[BLOCK_SIZE];
+	__shared__ double sdata[BLOCK_SIZE_DIM1];
 	
-	// Load sum from global memory
+	// Load elements from global memory
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < size)
+	/*if (idx < size)
 		sdata[threadIdx.x] = elements[idx];
 	else
-		sdata[threadIdx.x] = 0;
-	
+		sdata[threadIdx.x] = 0;*/
+	sdata[threadIdx.x] = elements[idx];
+		
 	// Synchronize to make sure data is loaded before starting the comparison
   __syncthreads();
 
-	int nTotalThreads = BLOCK_SIZE;	// Total number of threads, rounded up to the next power of two
+	int nTotalThreads = BLOCK_SIZE_DIM1;
 	 
 	while(nTotalThreads > 1) {
 		int halfPoint = (nTotalThreads >> 1);	// divide by two
@@ -38,13 +38,9 @@ void matSumKernel(double *elements, int size, double *d_part) {
 		if (threadIdx.x < halfPoint) {
 			thread2 = threadIdx.x + halfPoint;
 
-			// Skipping the fictious threads blockDim.x ... blockDim_2-1
-			if (thread2 < blockDim.x) {
-				// Get the shared value stored by another thread 
-				temp = sdata[thread2];
-				if (temp > sdata[threadIdx.x]) 
-					 sdata[threadIdx.x] += temp;
-			}
+			// Get the shared value stored by another thread and sum it to sdata
+			sdata[threadIdx.x] += sdata[thread2];
+			
 		}
 		__syncthreads();
 	 
@@ -58,7 +54,16 @@ void matSumKernel(double *elements, int size, double *d_part) {
 	}
 }
 
-double matSum(Matrix A) {
+/*int NearestPowerOf2(int n) {
+  if (!n) return n;  //(0 == 2^0)
+  int x = 1;
+  while(x < n) {
+      x <<= 1;
+  }
+  return x;
+}*/
+
+double matSum(Matrix d_A) {
 	cudaEvent_t start, stop;
 	float time;
 	// create events and start the timer
@@ -66,24 +71,21 @@ double matSum(Matrix A) {
 	cudaEventCreate(&stop);
 	cudaEventRecord( start, 0 );
 
-	// load A to device memory
-	Matrix d_A;
-	d_A.width = A.width;
-	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
-	cudaError_t err = cudaMalloc(&d_A.elements, size);
-	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
-	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy A to device: %s\n", cudaGetErrorString(err));
-
-	// load d_part to device memory
-	double *d_part;
-	err = cudaMalloc(&d_part, BLOCK_SIZE*sizeof(double));
-	printf("CUDA malloc d_part; %s\n", cudaGetErrorString(err));
-	err = cudaMemset(d_part, 0, BLOCK_SIZE*sizeof(double));
-	printf("CUDA memset d_part to 0 %s\n", cudaGetErrorString(err));
-
-	// load d_sum to device memory
+	// allocate d_part1 on device memory
+	double *d_part1;
+	cudaError_t err = cudaMalloc(&d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part1; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, 0,  BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part1 to 0: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_part2 on device memory
+	double *d_part2;
+	err = cudaMalloc(&d_part2, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA malloc d_part2; %s\n", cudaGetErrorString(err));
+	err = cudaMemset(d_part1, 0, BLOCK_SIZE_DIM1*sizeof(double));
+	printf("CUDA memset d_part2 to 0: %s\n", cudaGetErrorString(err));	
+	
+	// allocate d_sum on device memory
 	double *d_sum;
 	err = cudaMalloc(&d_sum, sizeof(double));
 	printf("CUDA malloc d_sum; %s\n", cudaGetErrorString(err));
@@ -91,19 +93,25 @@ double matSum(Matrix A) {
 	printf("CUDA memset d_sum to 0: %s\n", cudaGetErrorString(err));
 
 	// invoke kernel
-	dim3 dimBlock(BLOCK_SIZE);
-	dim3 dimGrid((A.width*A.height + dimBlock.x - 1)/dimBlock.x);
-	//int blockDim_2 = NearestPowerOf2(d_A.width*d_A.height);
-	//printf("nearest power of 2 (blockDim_2): %d\n",blockDim_2);
+	dim3 dimBlock(BLOCK_SIZE_DIM1);
+	dim3 dimGrid((d_A.width*d_A.height + dimBlock.x - 1)/dimBlock.x);
+	
 	// first pass
-	matSumKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_A.elements, d_A.width*d_A.height, d_part1);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 1st pass: %s\n", cudaGetErrorString(err));
+	
 	// second pass
-	dimGrid = dim3(1);
-	matSumKernel<<<dimGrid, dimBlock>>>(d_part, BLOCK_SIZE, d_sum);
+	dimGrid = dim3(BLOCK_SIZE_DIM1);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_part1, BLOCK_SIZE_DIM1*BLOCK_SIZE_DIM1, d_part2);
 	err = cudaThreadSynchronize();
 	printf("Run kernel 2nd pass: %s\n", cudaGetErrorString(err));
+	
+	// third pass
+	dimGrid = dim3(1);
+	sumReduceKernel<<<dimGrid, dimBlock>>>(d_part2, BLOCK_SIZE_DIM1, d_sum);
+	err = cudaThreadSynchronize();
+	printf("Run kernel 3rd pass: %s\n", cudaGetErrorString(err));
 
 	// read sum from device memory
 	double sum;
@@ -119,11 +127,11 @@ double matSum(Matrix A) {
 	cudaEventDestroy( stop );
 	printf("Time elapsed: %f ms\n", time);
 
-
-
 	// free device memory
-	cudaFree(d_A.elements);
+	cudaFree(d_part1);
+	cudaFree(d_part2);
 	cudaFree(d_sum);
+	
 	return sum;
 }
 
@@ -156,7 +164,7 @@ void populate(Matrix A) {
 	printf("Copy A to device: %s\n", cudaGetErrorString(err));
 
 	  //invoke kernel
-	dim3 dimBlock(BLOCK_SIZE_DIM2, BLOCK_SIZE_DIM2);
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
 	populateKernel<<<dimGrid, dimBlock>>>(d_A);
 	err = cudaThreadSynchronize();
@@ -189,15 +197,15 @@ void printMatrix(Matrix A) {
 	printf("\n");
 }
 
-//usage : sumOfMatrix height width
+//usage : matSum height width
 int main(int argc, char* argv[]) {
 	Matrix A;
 	int a1, a2;
 	// Read some values from the commandline
 	a1 = atoi(argv[1]); /* Height of A */
 	a2 = atoi(argv[2]); /* Width of A */
-	if (a1*a2 > 1048576) {
-		printf("Matrices bigger than 1048576 elements are not supported yet\n");
+	if (a1*a2 > 1073741824) {
+		printf("Matrices bigger than 1073741824 elements are not supported yet\n");
 		return 0;
 	}
 	A.height = a1;
@@ -205,8 +213,7 @@ int main(int argc, char* argv[]) {
 	A.elements = (double*)malloc(A.width * A.height * sizeof(double));
 	// give A values
 	populate(A);
-	printMatrix(A);
-	// call matSum
+	//printMatrix(A);
 	double sum = matSum(A);
-	printf("\nThe sum element is: %.4f\n", sum);
+	printf("\nThe sum is: %.4f\n", sum);
 }

@@ -4,8 +4,7 @@
 #include <math.h>
 #include "utils.cu"
 
-//#define BLOCK_SIZE 1024
-//#define BLOCK_SIZE_DIM2 32
+#define BLOCK_SIZE 32
 #define EPS 2.2204e-16
 
 /*typedef struct {

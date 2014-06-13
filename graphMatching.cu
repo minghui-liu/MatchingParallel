@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <math.h>
 //#include "test_utils.cu"
-//#include "hypergraphMatching.cu"
+#include "hypergraphMatching.cu"
 #include "k_utils.cu"
 
 #define BLOCK_SIZE 32
@@ -202,6 +202,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	cudaFree(d_G2.elements);
 	cudaFree(d_G2t.elements);
 	
+	/*
 	// allocate d_X and d_Z on device memory
 	Matrix d_X, d_Z;
 	d_Z.height = d_X.height = Y.height;
@@ -211,20 +212,23 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	printf("CUDA malloc d_X: %s\n", cudaGetErrorString(err));
 	err = cudaMalloc(&d_Z.elements, size);
 	printf("CUDA malloc d_Z: %s\n", cudaGetErrorString(err));
+	*/
 	
 	// call hypergraphMatching()
-	hypergraphMatching(d_Y, numberOfMatches, d_X, d_Z);
+	hypergraphMatching(Y, numberOfMatches, X, Z);
 	
+	/*
 	// read X and Z from device memory
 	err = cudaMemcpy(X.elements, d_X.elements, size, cudaMemcpyDeviceToHost);
 	printf("Copy X off of device: %s\n",cudaGetErrorString(err));
 	err = cudaMemcpy(Z.elements, d_Z.elements, size, cudaMemcpyDeviceToHost);
 	printf("Copy Z off of device: %s\n",cudaGetErrorString(err));
-	
+
 	// free device memory
 	cudaFree(d_X.elements);
 	cudaFree(d_Y.elements);
 	cudaFree(d_Z.elements);
+	*/
 }
 
 
