@@ -199,7 +199,7 @@ void isSymmetricEpsKernel(Matrix d_A, int *d_result, double eps){
 	if(d_A.elements[row*d_A.width+col] + eps < d_A.elements[row + col*d_A.width] && 
 		d_A.elements[row*d_A.width+col] - eps > d_A.elements[row + col*d_A.width])
 	
-		d_result = 0;
+		*(d_result) = 0;
 }
 
 int isSymmetricEps(Matrix A, double eps) {

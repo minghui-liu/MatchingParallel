@@ -2,7 +2,7 @@
 #include <math.h>
 //#include "test_utils.cu"
 #include "hypergraphMatching.cu"
-#include "k_utils.cu"
+#include "utils.cu"
 
 #define BLOCK_SIZE 32
 

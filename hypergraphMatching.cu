@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "k_utils.cu"
+#include "utils.cu"
 #include "nearestDSmax_RE.cu"
 
 #define BLOCK_SIZE 32
@@ -61,7 +61,7 @@ void soft2hard(Matrix d_soft_original, int numberOfMatches, Matrix d_hard) {
 		Matrix d_soft_r;
 		d_soft_r.height = 1;
 		d_soft_r.width = d_soft.width;		
-		dimGrid.x = dim3( (d_soft.width + dimBlock.x - 1)/dimBlock.x ,(d_soft.height + dimBlock.y - 1)/dimBlock.y );
+		dimGrid = dim3( (d_soft.width + dimBlock.x - 1)/dimBlock.x ,(d_soft.height + dimBlock.y - 1)/dimBlock.y );
 		getRowKernel<<<dimGrid, dimBlock>>>(d_soft, d_soft_r, r);
 		// [val,c] = max(soft(r,:));
 		double val = maxOfMatrix(d_soft_r);
@@ -72,7 +72,7 @@ void soft2hard(Matrix d_soft_original, int numberOfMatches, Matrix d_hard) {
 		}
 		
 		// hard(r,c) = 1
-		err = cudaMemset(d_hard+r*d_hard.width+c, 1, sizeof(double));
+		err = cudaMemset(d_hard.elements+r*d_hard.width+c, 1, sizeof(double));
 		printf("CUDA memset d_hard(r,c) to 1: %s\n", cudaGetErrorString(err));
 		
 		// soft(r,:) = -Inf;
@@ -80,7 +80,7 @@ void soft2hard(Matrix d_soft_original, int numberOfMatches, Matrix d_hard) {
 		dimGrid = dim3((d_soft.width + dimBlock.x - 1)/dimBlock.x);
 		negInfRow<<<dimGrid, dimBlock>>>(d_soft, r);
 		// soft(:,c) = -Inf;
-		dimGrid = dim3((d_soft.height + dimBlock.x - 1)/dimBlock.x)
+		dimGrid = dim3((d_soft.height + dimBlock.x - 1)/dimBlock.x);
 		negInfCol<<<dimGrid, dimBlock>>>(d_soft, c);
 	}
 	
@@ -126,11 +126,11 @@ void hypergraphMatching(Matrix Y, int numberOfMatches, Matrix X, Matrix Z) {
 	printf("CUDA malloc d_maxColSum: %s\n", cudaGetErrorString(err));
 	*/
 	Matrix maxRowSum, maxColSum;
-	maxRowSum.height = d_Y.height;
+	maxRowSum.height = Y.height;
 	maxRowSum.width = 1;
-	maxRowSum.elements = (double*)malloc(maxRowSum.height*sizeof(*double));
+	maxRowSum.elements = (double*)malloc(maxRowSum.height*sizeof(double));
 	maxColSum.height = 1;
-	maxColSum.width = d_Y.width;
+	maxColSum.width = Y.width;
 	maxColSum.elements = (double*)malloc(maxColSum.width*sizeof(double));
 	
 	//nearestDSmax_RE(d_Y, d_maxRowSum, d_maxColSum, numberOfMatches, 1000, 0.01, d_Z);
