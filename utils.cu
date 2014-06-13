@@ -241,15 +241,13 @@ int isSymmetricEps(Matrix A, double eps) {
 
 //create an m-by-n tiling of a given matrix
 __global__
-void repmatKernel(Matrix d_A, Matrix d_B){
+void repmatKernel(Matrix d_A, int m, int n, Matrix d_B) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_A.height || col >= d_A.width) return;
-	int h_reps = d_B.width / d_A.width;
-	int v_reps = d_B.height / d_A.height;
-	for(int i=0; i < h_reps; i++){
-		for(int j=0; j < v_reps; j++){
-			d_B.elements[row*d_B.width + col + d_A.width*i + d_B.width*j*d_A.height] = d_A.elements[row*d_A.width + col];
+	for(int i=0; i < m; i++) {
+		for(int j=0; j < n; j++) {
+			d_B.elements[(row + i*d_A.height)*d_B.width + (col + j*d_A.width)] = d_A.elements[row*d_A.width + col];
 		}
 	}
 }
@@ -258,7 +256,7 @@ void repmat(Matrix In, int m, int n, Matrix Out){
 	if (Out.height != In.height * m || Out.width != In.width * n) {
 		printf("Output matrix has incorrect dimensions!\n");
 		return;
-}
+	}
 	// load In  to device memory
 	Matrix d_In;
 	d_In.width = In.width;
@@ -547,7 +545,6 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 	cudaFree(d_Out.elements);
 
 }
-
 
 // matrix getCol kernel called by getCol()
 __global__
