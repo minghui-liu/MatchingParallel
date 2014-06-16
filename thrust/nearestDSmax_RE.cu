@@ -4,6 +4,13 @@
 #include <math.h>
 #include "utils.cu"
 
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/extrema.h>
+#include <thrust/reduce.h>
+
+#include <iostream>
+
 #define BLOCK_SIZE 32
 #define EPS 2.2204e-16
 
@@ -25,7 +32,11 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 	double totalSumMinus = totalSum - precision;
 	double curAlpha;
 
-	double Min = minOfArray(h.elements, h.height*h.width);
+//	double Min = minOfArray(h.elements, h.height*h.width);
+	thrust::host_vector<double> H(h.elements, h.elements + h.width * h.height);
+	thrust::device_vector<double> D = H;
+	thrust::detail::normal_iterator<thrust::device_ptr<double> > minResult = thrust::max_element(D.begin(), D.end());
+	double Min = *minResult;
 
 	curAlpha = -Min + EPS;
 
@@ -42,7 +53,11 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 
 		matPlusScaler(h, newAlpha, hAlpha);
 		matDiv(y, hAlpha, X);
-		newSum = arraySum(X.elements, X.width*X.height);
+//		newSum = arraySum(X.elements, X.width*X.height);
+		thrust::host_vector<double> h_X(X.elements, X.elements + X.width * X.height);
+		thrust::device_vector<double> d_X = h_X;
+		newSum = thrust::reduce(d_X.begin(), d_X.end(), (double) 0, thrust::plus<double>());
+
 
 		if(newSum > totalSum) {
 			curAlpha = newAlpha;
@@ -106,7 +121,10 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 	Xsum.elements = (double*) malloc(X.width * sizeof(double));
 
 	for(int i=0; i < X.height; i++){
-		Xsum.elements[i] = arraySum(X.elements + i*X.width, X.width);
+//		Xsum.elements[i] = arraySum(X.elements + i*X.width, X.width);
+		thrust::host_vector<double> h_Xsum(X.elements + i*X.width, X.elements + i*X.width + X.width);
+		thrust::device_vector<double> d_Xsum = h_Xsum;
+		Xsum.elements[i] = thrust::reduce(d_Xsum.begin(), d_Xsum.end(), (double) 0, thrust::plus<double>());
 	}
 
 	Matrix yCol, hCol, Xcol;
@@ -254,7 +272,7 @@ void lambda(Matrix A, Matrix B, Matrix C, Matrix D, Matrix Out) {
 	cudaMemcpy(d_C.elements, C.elements, size, cudaMemcpyHostToDevice);	
 	printf("Copy input matrix C to device: %s\n", cudaGetErrorString(err));
 	
-	// load C to device memory
+	// load D to device memory
 	Matrix d_D;
 	d_D.width = D.width;
 	d_D.height = D.height;
@@ -383,9 +401,14 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	F2.elements = (double*)malloc(size);
 	F3.elements = (double*)malloc(size);
 
-	double Ysum = matSum(Y);
+//	double Ysum = matSum(Y);
+	thrust::host_vector<double> h_Y(Y.elements, Y.elements + Y.width);
+	thrust::device_vector<double> d_Y = h_Y;
+	thrust::detail::normal_iterator<thrust::device_ptr<double> > sum = thrust::max_element(d_Y.begin(), d_Y.end());
+	double Ysum = *sum;
+
 	Matrix Ydiv;
-	Ydiv.width = m;
+	Ydiv.width  = m;
 	Ydiv.height = n;
 	Ydiv.elements = (double*)malloc(size);
 	matTimesScaler(Y, 1/Ysum, Ydiv);
@@ -394,7 +417,7 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	matTimesScaler(F1, 1, F3);
 
 	Matrix H1, H2, H3;
-	H1.width = H2.width = H3.width = m;
+	H1.width  = H2.width  = H3.width  = m;
 	H1.height = H2.height = H3.height = n;
 	H1.elements = (double*)malloc(size);
 	H2.elements = (double*)malloc(size);
@@ -441,6 +464,8 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	maxRowSumT.width = m;
 	maxRowSumT.height = 1;
 	maxRowSumT.elements = (double*)malloc(size/n);
+
+	double fdMax1, fdMax2;
 
 //for t = 1 : maxLoops
 	for(int t=0; t < 50; t++){
@@ -494,8 +519,28 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
-		double fdMax1 = max(maxOfMatrix(Fdiff1), fabs(minOfMatrix(Fdiff1)));
-		double fdMax2 = max(maxOfMatrix(Fdiff2), fabs(minOfMatrix(Fdiff2)));
+
+//		double fdMax1 = max(maxOfMatrix(Fdiff1), fabs(minOfMatrix(Fdiff1)));
+		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
+		thrust::device_vector<double> d_Fdiff1 = h_Fdiff1;
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1max = thrust::max_element(d_Fdiff1.begin(), d_Fdiff1.end());
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1min = thrust::min_element(d_Fdiff1.begin(), d_Fdiff1.end());
+
+		if(*Fdiff1max > fabs(*Fdiff1min))
+			fdMax1 = *Fdiff1max;
+		else
+			fdMax1 = *Fdiff1min;
+
+//		double fdMax2 = max(maxOfMatrix(Fdiff2), fabs(minOfMatrix(Fdiff2)));
+		thrust::host_vector<double> h_Fdiff2(Fdiff2.elements, Fdiff2.elements + Fdiff2.width*Fdiff2.height);
+		thrust::device_vector<double> d_Fdiff2 = h_Fdiff2;
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2max = thrust::max_element(d_Fdiff2.begin(), d_Fdiff2.end());
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2min = thrust::min_element(d_Fdiff2.begin(), d_Fdiff2.end());
+
+		if(*Fdiff2max > fabs(*Fdiff2min))
+			fdMax2 = *Fdiff2max;
+		else
+			fdMax2 = *Fdiff2min;
 
 		if(fabs(fdMax1) < precision && fabs(fdMax2) < precision)
 			break;

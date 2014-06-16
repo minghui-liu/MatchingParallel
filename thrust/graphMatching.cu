@@ -6,7 +6,7 @@
 
 #define BLOCK_SIZE 32
 
-/*__device__ double atomicAdd(double* address, double val) {
+/*	__device__ double atomicAdd(double* address, double val) {
 	unsigned long long int* address_as_ull = (unsigned long long int*)address;
 	unsigned long long int old = *address_as_ull, assumed;
 	do {
@@ -17,7 +17,6 @@
 	return __longlong_as_double(old);
 }*/
 
-// exp kernel
 __global__ 
 void expKernel(Matrix d_D, double sigma) {
 	int col = blockIdx.y * blockDim.y + threadIdx.y;
@@ -42,17 +41,17 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	d_G2t_row.height = 1;
 	d_G2t_row.width = d_G1.width;
 	d_G2t_row.elements = (double*)malloc(d_G2t_row.width * d_G2t_row.height * sizeof(double));
-	
+
 	// create d_D, d_D1, d_D2
 	Matrix d_D, d_D1, d_D2;
 	d_D.height = d_D1.height = d_D2.height = d_G1.height;
-	d_D.width = d_D1.width = d_D2.width = d_G1.width;	
-	d_D.elements = (double*)malloc(d_D.width * d_D.height * sizeof(double));
+	d_D.width  = d_D1.width  = d_D2.width  = d_G1.width;	
+	d_D.elements  = (double*)malloc(d_D.width  * d_D.height  * sizeof(double));
 	d_D1.elements = (double*)malloc(d_D1.width * d_D1.height * sizeof(double));
 	d_D2.elements = (double*)malloc(d_D2.width * d_D2.height * sizeof(double));
-	
+
 	// calculate D
-	
+
 	// G1(:,i) invoke getCol kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (d_G1.width + dimBlock.x - 1)/dimBlock.x, (d_G1.height + dimBlock.y - 1)/dimBlock.y );
@@ -94,7 +93,7 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	expKernel<<<dimGrid, dimBlock>>>(d_D, sigma);
 	/*err = cudaThreadSynchronize();
 	printf("Run exp kernel: %s\n", cudaGetErrorString(err));*/
-	
+
 	// write to Y
 	dimGrid.x = (d_D.width + dimBlock.x - 1)/dimBlock.x;
 	dimGrid.y = (d_D.height + dimBlock.y - 1)/dimBlock.y;
