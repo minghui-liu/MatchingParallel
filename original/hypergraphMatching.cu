@@ -159,6 +159,9 @@ void hypergraphMatching(Matrix Y, int numberOfMatches, Matrix X, Matrix Z) {
 	maxColSum.width = Y.width;
 	maxColSum.elements = (double*)malloc(maxColSum.width*sizeof(double));
 	
+	ones(maxRowSum);
+	ones(maxColSum);
+	
 	nearestDSmax_RE(Y, maxRowSum, maxColSum, numberOfMatches, 1000, 0.01, Z);
 	soft2hard(Z, numberOfMatches, X);
 }

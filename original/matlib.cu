@@ -360,6 +360,43 @@ void maxOfMatrixRow(Matrix d_A, Matrix d_col) {
 	d_col.elements[row] = max;
 }
 
+/************************ O ************************/
+// matrix ones kernel called by ones()
+__global__
+void onesKernel(Matrix d_A) {
+	int row = blockIdx.y * blockDim.y + threadIdx.y;
+	int col = blockIdx.x * blockDim.x + threadIdx.x;
+	if(row > d_A.height || col > d_A.width) return;
+	d_A.elements[row*d_A.width+col] = 1;
+}
+
+void ones(Matrix A) {
+	// load A to device memory
+	Matrix d_A;
+	d_A.width = A.width;
+	d_A.height = A.height;
+	size_t size = A.width * A.height * sizeof(double);
+	cudaError_t err = cudaMalloc(&d_A.elements, size);
+	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
+	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
+	printf("Copy A to device: %s\n", cudaGetErrorString(err));
+	
+	// invoke kernel
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimGrid( (A.width + dimBlock.x - 1)/dimBlock.x, (A.height + dimBlock.y - 1)/dimBlock.y );
+	onesKernel<<<dimGrid, dimBlock>>>(d_A);
+	err = cudaThreadSynchronize();
+	printf("Run kernel: %s\n", cudaGetErrorString(err));
+
+	// read A from device memory
+	err = cudaMemcpy(A.elements, d_A.elements, size, cudaMemcpyDeviceToHost);
+	printf("Copy C off of device: %s\n",cudaGetErrorString(err));
+
+	// free device memory
+	cudaFree(d_A.elements);
+}
+
+
 /************************ R ************************/
 
 //create an m-by-n tiling of a given matrix
