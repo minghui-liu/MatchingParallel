@@ -1,7 +1,8 @@
 #include "matlib.cu"
 #define EPS 2.2204e-16
 
-void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x){
+void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x) {
+	printf("exactTotalSum()\n");
 	// y and h are vectors, totalSum and precision are scalars
 	// x is the return vector and length is the length of y, h, and x
 	
@@ -40,6 +41,13 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 				stepAlpha = stepAlpha / 2;
 			else return;
 		}
+		
+		// empty vectors
+		H_x.clear();
+		D_x.clear();
+		// deallocate any capacity which may currently be associated with vectors
+		H_x.shrink_to_fit();
+		D_x.shrink_to_fit();
 	}
 
 }

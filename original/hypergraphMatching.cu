@@ -1,5 +1,4 @@
 #include <stdio.h>
-//#include "utils.cu"
 #include "nearestDSmax_RE.cu"
 #include "matlib.cu"
 
@@ -32,9 +31,9 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	d_soft.width = soft.width;
 	size_t size = d_soft.height * d_soft.width * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_soft.elements, size);
-	printf("CUDA malloc d_soft: %s\n", cudaGetErrorString(err));
+	//printf("CUDA malloc d_soft: %s\n", cudaGetErrorString(err));
 	err = cudaMemcpy(d_soft.elements, soft.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy soft to device: %s\n", cudaGetErrorString(err));
+	//printf("Copy soft to device: %s\n", cudaGetErrorString(err));
 
 	// allocate d_hard on device memory
 	Matrix d_hard;
@@ -42,7 +41,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	d_hard.width = hard.width;
 	size = d_hard.height * d_hard.width * sizeof(double);
 	err = cudaMalloc(&d_hard.elements, size);
-	printf("CUDA malloc d_hard: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc d_hard: %s\n", cudaGetErrorString(err));	
 		
 	// make d_hard an all zero matrix, invoke zeros kernel
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
@@ -54,25 +53,25 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	d_maxSoft.height = d_soft.height;
 	d_maxSoft.width = 1;
 	err = cudaMalloc(&d_maxSoft.elements, d_maxSoft.height*sizeof(double));
-	printf("CUDA malloc d_maxSoft: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc d_maxSoft: %s\n", cudaGetErrorString(err));	
 	
 	// allocate d_soft_r on device
 	Matrix d_soft_r;
 	d_soft_r.height = 1;
 	d_soft_r.width = d_soft.width;
 	err = cudaMalloc(&d_soft_r.elements, d_soft_r.width*sizeof(double));
-	printf("CUDA malloc d_soft_r: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc d_soft_r: %s\n", cudaGetErrorString(err));	
 	
 	for (int i=0; i < numberOfMatches; i++) {	
 
 		// maxSoft = max(soft,[],2);
 		// invoke maxOfMatrixRow kernel
-		printf("maxOfMatrixRow()\n");
+		//printf("maxOfMatrixRow()\n");
 		dimBlock = dim3(BLOCK_SIZE_DIM1);
 		dimGrid = dim3( (d_maxSoft.height + dimBlock.x - 1)/dimBlock.x );
 		maxOfMatrixRow<<<dimGrid, dimBlock>>>(d_soft, d_maxSoft);
 		err = cudaThreadSynchronize();
-		printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
+		//printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
 		
 		// [dummy,r] = max(maxSoft);
 		thrust::device_vector<double> D_maxSoft(d_maxSoft.elements, d_maxSoft.elements + d_maxSoft.width * d_maxSoft.height);
@@ -97,7 +96,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		
 		// hard(r,c) = 1
 		err = cudaMemset(d_hard.elements+r*d_hard.width+c, 1, sizeof(double));
-		printf("CUDA memset d_hard(r,c) to 1: %s\n", cudaGetErrorString(err));
+		//printf("CUDA memset d_hard(r,c) to 1: %s\n", cudaGetErrorString(err));
 		
 		// soft(r,:) = -Inf;
 		dimBlock = dim3(BLOCK_SIZE_DIM1);
@@ -112,7 +111,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	// copy hard back to device
 	size = d_hard.width * d_hard.height * sizeof(double);
 	err = cudaMemcpy(hard.elements, d_hard.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy d_hard off of device: %s\n", cudaGetErrorString(err));
+	//printf("Copy d_hard off of device: %s\n", cudaGetErrorString(err));
 	
 	// free device memory
 	cudaFree(d_soft.elements);

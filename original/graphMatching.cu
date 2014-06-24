@@ -122,9 +122,9 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	d_G1.height = G1.height;
 	size_t size = d_G1.width * d_G1.height * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_G1.elements, size);
-	printf("CUDA malloc d_G1: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc d_G1: %s\n", cudaGetErrorString(err));	
 	err = cudaMemcpy(d_G1.elements, G1.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy G1 to device: %s\n", cudaGetErrorString(err));
+	//printf("Copy G1 to device: %s\n", cudaGetErrorString(err));
 	
 	// load G2 to device memory
 	Matrix d_G2;
@@ -132,9 +132,9 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	d_G2.height = G2.width;
 	size = d_G2.width * d_G2.height * sizeof(double);
 	err = cudaMalloc(&d_G2.elements, size);
-	printf("CUDA malloc d_G2: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc d_G2: %s\n", cudaGetErrorString(err));	
 	err = cudaMemcpy(d_G2.elements, G2.elements, size, cudaMemcpyHostToDevice);	
-	printf("Copy G2 to device: %s\n", cudaGetErrorString(err));
+	//printf("Copy G2 to device: %s\n", cudaGetErrorString(err));
 	
 	// transpose G2	
 	// allocate G2t on device memory
@@ -143,15 +143,15 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	d_G2t.height = G2.width;
 	size = d_G2t.width * d_G2t.height * sizeof(double);
 	err = cudaMalloc(&d_G2t.elements, size);
-	printf("CUDA malloc G2t: %s\n", cudaGetErrorString(err));	
+	//printf("CUDA malloc G2t: %s\n", cudaGetErrorString(err));	
 	
 	// invoke transpose kernel
-	printf("transpose(G2)\n");
+	//printf("transpose(G2)\n");
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
 	dim3 dimGrid( (d_G2.width + dimBlock.x - 1)/dimBlock.x, (d_G2.height + dimBlock.y - 1)/dimBlock.y );
 	transposeKernel<<<dimGrid, dimBlock>>>(d_G2, d_G2t);
 	err = cudaThreadSynchronize();
-	printf("Run transpose kernel: %s\n", cudaGetErrorString(err));
+	//printf("Run transpose kernel: %s\n", cudaGetErrorString(err));
 	
 	// free d_G2
 	cudaFree(d_G2.elements);
@@ -163,19 +163,19 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	d_Y.width = Y.width; 
 	size = d_Y.width * d_Y.height * sizeof(double);
 	err = cudaMalloc(&d_Y.elements, size);
-	printf("CUDA malloc d_Y: %s\n", cudaGetErrorString(err));
+	//printf("CUDA malloc d_Y: %s\n", cudaGetErrorString(err));
 	// invoke zeros kernel
 	dimGrid = dim3( (d_Y.width+dimBlock.x-1)/dimBlock.x, (d_Y.height+dimBlock.y-1)/dimBlock.y );
 	zerosKernel<<<dimGrid, dimBlock>>>(d_Y);
 
 	marginalize<<<dimGrid, dimBlock>>>(d_G1, d_G2t, sigma, d_Y);
 	err = cudaThreadSynchronize();
-	printf("Run marginalize kernel: %s\n", cudaGetErrorString(err));
+	//printf("Run marginalize kernel: %s\n", cudaGetErrorString(err));
 
 	// read Y from device memory
 	size = Y.width * Y.height * sizeof(double);
 	err = cudaMemcpy(Y.elements, d_Y.elements, size, cudaMemcpyDeviceToHost);
-	printf("Copy Y off of device: %s\n",cudaGetErrorString(err));
+	//printf("Copy Y off of device: %s\n",cudaGetErrorString(err));
 		
 	// free some device memory
 	cudaFree(d_G1.elements);
