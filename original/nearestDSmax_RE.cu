@@ -11,7 +11,7 @@
 #include "maxColSumP.cu"
 
 #define BLOCK_SIZE 32
-#define EPS 2.2204e-16
+#define EPS 2.220446049250313e-16
 
 void vectorize(Matrix X, Matrix V){
 
@@ -324,24 +324,10 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	Yv.elements = (double*)malloc(Yv.height * sizeof(double));
 	negH3v.elements = (double*)malloc(negH3v.height * sizeof(double));
 */
-/*	printf("**************ENTERING LOOP*********\n");
-	printf("F1\n");
-	printMatrix(F1);
-	printf("F2\n");
-	printMatrix(F2);
-	printf("F3\n");
-	printMatrix(F3);
-	printf("lambda1\n");
-	printMatrix(lambda1);
-	printf("lambda2\n");
-	printMatrix(lambda2);
-	printf("lambda3\n");
-	printMatrix(lambda3);
-*/
 
 	//for t = 1 : maxLoops
 	for(int t=0; t < maxLoops; t++) {
-		printf("t is now: %d\n", t);
+
 	// Max row sum
 		// H1 = lambda1 - (Y ./ (F3+eps));
 		H(lambda1, Y, F3, H1);
@@ -356,25 +342,12 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		//transpose(F1, F1t);
 		//maxColSumP(Y', -H1', maxRowSum', precision)'
 		maxColSumP(Yt, negH1t, maxRowSumT, precision, F1t);
-
 		//F1
-		printf("F1t\n");
-		printMatrix(F1t);
 		transpose(F1t, F1);
-
-
-/******************** clean above *** debug the following code ********************/
-
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
-		
-	/*printf("MAX ROW SUM\n");
-		printf("F1\n");
-		printMatrix(F1);
-		printf("H1\n");
-		printMatrix(H1);
-		printf("lambda1\n");
-		printMatrix(lambda1);*/
+
+	/*************** clean above *** debug the following code ***************/
 
 	// Max col sum 
 		// H2 = lambda2 - (Y ./ (F1+eps));
@@ -383,8 +356,10 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		matTimesScaler(H2, -1, negH2);
 		maxColSumP(Y, negH2, maxColSum, precision, F2);
 		// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));
-		// !!! RETURN ALL NEGATIVE ZEROS
-		// DEBUG LAMBDA KERNEL
+		// !!! RETURNS ALL NEGATIVE ZEROS
+		// !!! DEBUG LAMBDA KERNEL
+		printf("F2:\n");
+		printMatrix(F2);
 		printf("lambda2 before lambda kernel:\n");
 		printMatrix(lambda2);
 		lambda(lambda2, Y, F1, F2, lambda2);
@@ -394,39 +369,26 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));
 		H(lambda3, Y, F2, H3);
+		printf("H3\n");
+		printMatrix(H3);
 		matTimesScaler(H3, -1, negH3);
-		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );
-		printf("Y\n");
-		printMatrix(Y);
-		printf("negH3\n");
-		printMatrix(negH3);
-		printf("totalSum is: %f\n", totalSum);
-		printf("precision is: %f\n", precision);
+		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );	
 		//vectorize(Y, Yv);
-		//vectorize(negH3, negH3v);
 		transpose(Y, Yt);
+		//vectorize(negH3, negH3v);
 		transpose(negH3, negH3t);
 		exactTotalSum(Yt, negH3t, totalSum, precision, F3reshape);
 		printf("F3reshape\n");
 		printMatrix(F3reshape);
 		reshape(F3reshape, F3);
-
+		printf("F3:\n");
+		printMatrix(F3);
 		//lambda3 = lambda3 - (Y ./ (F2+eps)) + (Y ./ (F3+eps));
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
-	
-		printf("H3\n");
-		printMatrix(H3);
 		printf("lambda3\n");
 		printMatrix(lambda3);
-
-		printf("F1\n");
-		printMatrix(F1);
-		printf("F2\n");
-		printMatrix(F2);
-		printf("F3\n");
-		printMatrix(F3);
 	
 		// max and min of Fdiff1
 		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);

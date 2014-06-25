@@ -1,5 +1,5 @@
 #include "matlib.cu"
-#define EPS 2.2204e-16
+#define EPS 2.220446049250313e-16
 
 void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x) {
 	printf("exactTotalSum()\n");
@@ -22,7 +22,7 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 	thrust::host_vector<double> H_h(h.elements, h.elements + h.width*h.height);
 	thrust::device_vector<double> D_h = H_h;
 	thrust::detail::normal_iterator<thrust::device_ptr<double> > MinIt = thrust::min_element(D_h.begin(), D_h.end());
-	printf("made it past thrust\n");
+
 	double Min = *MinIt;
 	double curAlpha = -Min + EPS;
 	
