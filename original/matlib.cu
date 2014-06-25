@@ -20,7 +20,7 @@ void printMatrix(Matrix A) {
 	printf("\n");
 	for (int i=0; i<A.height; i++) {
 		for (int j=0; j<A.width; j++) {
-			printf("%.4f ", A.elements[i*A.width+j]); 
+			printf("%.15f ", A.elements[i*A.width+j]); 
 		}
 		printf("\n");
 	}
