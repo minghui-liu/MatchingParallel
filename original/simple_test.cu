@@ -10,12 +10,12 @@ int main() {
 	G1.elements = (double*)malloc(G1.height*G1.width*sizeof(double));
 	G2.elements = (double*)malloc(G2.height*G2.width*sizeof(double));
 	double G1E[3][3] = {{0, 4, 3},
-											{4, 0, 5},
-											{3, 5, 0}};
+						{4, 0, 5},
+						{3, 5, 0}};
 	double G2E[4][4] = {{0.0, 3.8, 2.9, 0.0},
-											{3.8, 0.0, 5.1, 0.0},
-											{2.9, 5.1, 0.0, 0.0},
-											{0.0, 0.0, 0.0, 0.0}};
+						{3.8, 0.0, 5.1, 0.0},
+						{2.9, 5.1, 0.0, 0.0},
+						{0.0, 0.0, 0.0, 0.0}};
 	memcpy(G1.elements, G1E, G1.height*G1.width*sizeof(double));
 	memcpy(G2.elements, G2E, G2.height*G2.width*sizeof(double));
 	

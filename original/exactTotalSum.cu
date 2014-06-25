@@ -22,6 +22,7 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 	thrust::host_vector<double> H_h(h.elements, h.elements + h.width*h.height);
 	thrust::device_vector<double> D_h = H_h;
 	thrust::detail::normal_iterator<thrust::device_ptr<double> > MinIt = thrust::min_element(D_h.begin(), D_h.end());
+	printf("made it past thrust\n");
 	double Min = *MinIt;
 	double curAlpha = -Min + EPS;
 	
@@ -30,14 +31,14 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 
 	double stepAlpha, newAlpha, newSum;
 	stepAlpha = (10 > fabs(curAlpha/10))? 10 : fabs(curAlpha/10);
-	
+
 	for(int j=0; j < 50; j++) {
 		newAlpha = curAlpha + stepAlpha;
 		newSum = 0;
 
 		matPlusScaler(h, newAlpha, hAlpha);
 		matDiv(y, hAlpha, x);
-		
+
 		thrust::host_vector<double> H_x(x.elements, x.elements + x.width * x.height);
 		thrust::device_vector<double> D_x = H_x;
 		newSum = thrust::reduce(D_x.begin(), D_x.end(), (double) 0, thrust::plus<double>());
@@ -49,7 +50,7 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 				stepAlpha = stepAlpha / 2;
 			else return;
 		}
-		
+
 		// empty vectors
 		H_x.clear();
 		D_x.clear();
