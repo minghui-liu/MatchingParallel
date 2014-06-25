@@ -320,19 +320,13 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		//maxRowSum'
 		transpose(maxRowSum, maxRowSumT);
 		//maxColSumP(Y', -H1', maxRowSum', precision)'
-		// !!!
-		// !!! maxColSumP DOES THE WRONG COMPUTATION DEBUG INSIDE maxColSumP.cu
-		// !!!
-		maxColSumP(Yt, negH1t, maxRowSumT, EPS, F1t);
+		maxColSumP(Yt, negH1t, maxRowSumT, precision, F1t);
 		//F1
 		transpose(F1t, F1);
-		printf("F1:\n");
-		printMatrix(F1);
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
-		
-		printf("lambda1:\n");
-		printMatrix(lambda1);
+
+/******************** clean above *** debug the following code ********************/
 
 	// Max col sum 
 		// H2 = lambda2 - (Y ./ (F1+eps));
@@ -341,7 +335,13 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		matTimesScaler(H2, -1, negH2);
 		maxColSumP(Y, negH2, maxColSum, precision, F2);
 		// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));
+		// !!! RETURN ALL NEGATIVE ZEROS
+		// DEBUG LAMBDA KERNEL
+		printf("lambda2 before lambda kernel:\n");
+		printMatrix(lambda2);
 		lambda(lambda2, Y, F1, F2, lambda2);
+		printf("lambda2:\n");
+		printMatrix(lambda2);
 		
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));

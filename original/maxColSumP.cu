@@ -63,8 +63,6 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 	
 	for (int i=0; i<X.width; i++) {
 		getCol(X, Xcol, i);
-		printf("Xcol - %d",i);
-		printMatrix(Xcol);
 		thrust::host_vector<double> h_Xcol(Xcol.elements, Xcol.elements + Xcol.height);
 		thrust::device_vector<double> d_Xcol = h_Xcol;
 		Xsum.elements[i] = thrust::reduce(d_Xcol.begin(), d_Xcol.end(), (double) 0, thrust::plus<double>());
@@ -76,36 +74,36 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 		h_Xcol.shrink_to_fit();
 		d_Xcol.shrink_to_fit();	
 	}
-	
-	// !!!
-	// !!! DOES NOT RETURN THE CORRECT SUM
-	// !!!
-	//sumOfMatrixCol(X, Xsum);
-	
-	printf("X:\n");
-	printMatrix(X);
-	printf("Xsum:\n");
-	printMatrix(Xsum);
 
 	Matrix yCol, hCol;
 	yCol.width = 1;
 	hCol.width = 1;
-	//Xcol.width = 1;
 	yCol.height = Y.height;
 	hCol.height = H.height;
-	//Xcol.height = X.height;
 	yCol.elements = (double*)malloc(Y.height * sizeof(double));
 	hCol.elements = (double*)malloc(H.height * sizeof(double));
-	//Xcol.elements = (double*)malloc(X.height * sizeof(double));
 
 	for(int i=0; i < Xsum.width; i++) {
+		printf(" i = %d\n", i);
 		if(Xsum.elements[i] > maxColSum.elements[i]) {
 			//X(:,i) = exactTotalSum (Y(:,i), H(:,i), maxColSum(i), precision);
 			getCol(Y, yCol, i);
 			getCol(H, hCol, i);
+			
+			/*printf("yCol:\n");
+			printMatrix(yCol);
+			printf("hCol:\n");
+			printMatrix(hCol);*/
+
 			exactTotalSum(yCol, hCol, maxColSum.elements[i], precision, Xcol);
+			
+			/*printf("Xcol:\n");
+			printMatrix(Xcol);*/
+			
+			// copy col result back into X
+			// can be better parellelized
 			for(int j=0; j < X.width; j++) {
-				X.elements[j*X.width + i] = Xcol.elements[j];
+				X.elements[j * X.width + i] = Xcol.elements[j];
 			}
 		}
 	}
