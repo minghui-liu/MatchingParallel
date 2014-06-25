@@ -13,6 +13,15 @@
 #define BLOCK_SIZE 32
 #define EPS 2.2204e-16
 
+void vectorize(Matrix X, Matrix V){
+
+	for(int i=0; i < X.width; i++){
+		for(int j=0; j < X.height; j++){
+			V.elements[i*X.width + j] = X.elements[j*X.width + i];
+		}
+	}
+}
+
 __global__
 void HKernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_Out) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -280,9 +289,12 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	negH3.elements = (double*)malloc(size);
 
 	// transposed matrices
-	Matrix H1t, negH1t, Yt, F1t;
+	Matrix H1t, negH1t, Yt, F1t, negH3t;
 	H1t.width = negH1t.width = Yt.width = F1t.width = Y.height;
 	H1t.height = negH1t.height = Yt.height = F1t.height = Y.width;
+	negH3t.height = H3.width;
+	negH3t.width = H3.height;
+	negH3t.elements = (double*)malloc(size);
 	H1t.elements = (double*)malloc(size);
 	negH1t.elements = (double*)malloc(size);
 	Yt.elements = (double*)malloc(size);
@@ -305,9 +317,31 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	maxRowSumT.height = 1;
 	maxRowSumT.elements = (double*)malloc(maxRowSumT.width*sizeof(double));
 
+/*	Matrix Yv, negH3v;
+	Yv.height = Y.height*Y.width;
+	Yv.width = negH3v.width = 1;
+	negH3v.height = negH3.height * negH3.width;
+	Yv.elements = (double*)malloc(Yv.height * sizeof(double));
+	negH3v.elements = (double*)malloc(negH3v.height * sizeof(double));
+*/
+/*	printf("**************ENTERING LOOP*********\n");
+	printf("F1\n");
+	printMatrix(F1);
+	printf("F2\n");
+	printMatrix(F2);
+	printf("F3\n");
+	printMatrix(F3);
+	printf("lambda1\n");
+	printMatrix(lambda1);
+	printf("lambda2\n");
+	printMatrix(lambda2);
+	printf("lambda3\n");
+	printMatrix(lambda3);
+*/
+
 	//for t = 1 : maxLoops
 	for(int t=0; t < maxLoops; t++) {
-
+		printf("t is now: %d\n", t);
 	// Max row sum
 		// H1 = lambda1 - (Y ./ (F3+eps));
 		H(lambda1, Y, F3, H1);
@@ -319,21 +353,35 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(Y, Yt);
 		//maxRowSum'
 		transpose(maxRowSum, maxRowSumT);
+	//	transpose(F1, F1t);
 		//maxColSumP(Y', -H1', maxRowSum', precision)'
 		// !!!
 		// !!! maxColSumP DOES THE WRONG COMPUTATION DEBUG INSIDE maxColSumP.cu
 		// !!!
-		maxColSumP(Yt, negH1t, maxRowSumT, EPS, F1t);
+/*		printf("Y'\n");
+		printMatrix(Yt);
+		printf("-H1'\n");
+		printMatrix(negH1t);
+		printf("maxRowSum'\n");
+		printMatrix(maxRowSumT);
+		printf("precision: %f\n", precision);
+*/		maxColSumP(Yt, negH1t, maxRowSumT, 0.01, F1t);
 		//F1
+		printf("F1t\n");
+		printMatrix(F1t);
 		transpose(F1t, F1);
-		printf("F1:\n");
-		printMatrix(F1);
+
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
 		
-		printf("lambda1:\n");
+/*		printf("MAX ROW SUM\n");
+		printf("F1\n");
+		printMatrix(F1);
+		printf("H1\n");
+		printMatrix(H1);
+		printf("lambda1\n");
 		printMatrix(lambda1);
-
+*/
 	// Max col sum 
 		// H2 = lambda2 - (Y ./ (F1+eps));
 		H(lambda2, Y, F1, H2);
@@ -346,15 +394,40 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));
 		H(lambda3, Y, F2, H3);
+		matTimesScaler(H3, -1, negH3);
 		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );
-		exactTotalSum(Y, negH3, totalSum, precision, F3reshape);
+		printf("Y\n");
+		printMatrix(Y);
+		printf("negH3\n");
+		printMatrix(negH3);
+		printf("totalSum is: %f\n", totalSum);
+		printf("precision is: %f\n", precision);
+		//vectorize(Y, Yv);
+		//vectorize(negH3, negH3v);
+		transpose(Y, Yt);
+		transpose(negH3, negH3t);
+		exactTotalSum(Yt, negH3t, totalSum, precision, F3reshape);
+		printf("F3reshape\n");
+		printMatrix(F3reshape);
 		reshape(F3reshape, F3);
 
 		//lambda3 = lambda3 - (Y ./ (F2+eps)) + (Y ./ (F3+eps));
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
-		
+	
+		printf("H3\n");
+		printMatrix(H3);
+		printf("lambda3\n");
+		printMatrix(lambda3);
+
+		printf("F1\n");
+		printMatrix(F1);
+		printf("F2\n");
+		printMatrix(F2);
+		printf("F3\n");
+		printMatrix(F3);
+	
 		// max and min of Fdiff1
 		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
 		thrust::device_vector<double> d_Fdiff1 = h_Fdiff1;
