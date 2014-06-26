@@ -560,7 +560,6 @@ void zerosKernel(Matrix d_A) {
 }
 
 void zeros(Matrix A) {
-	printf("zeros()\n");
 	// load A to device memory
 	Matrix d_A;
 	d_A.width = A.width;

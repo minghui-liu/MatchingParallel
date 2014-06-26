@@ -4,7 +4,7 @@
 #include <thrust/extrema.h>
 #include <thrust/reduce.h>
 
-#define EPS 2.220446049250313e-16
+#define EPS 2.2204e-16
 
 __global__
 void unconstrainedPKernel(Matrix d_X) {
@@ -42,7 +42,9 @@ void unconstrainedP(Matrix Y, Matrix H, Matrix X) {
 
 	// free device memory
 	cudaFree(d_X.elements);
+
 }
+
 
 void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X) {
 	// unconstrainedP is clean	
@@ -59,7 +61,6 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 	
 	for (int i=0; i<X.width; i++) {
 		getCol(X, Xcol, i);
-		
 		thrust::host_vector<double> h_Xcol(Xcol.elements, Xcol.elements + Xcol.height);
 		thrust::device_vector<double> d_Xcol = h_Xcol;
 		Xsum.elements[i] = thrust::reduce(d_Xcol.begin(), d_Xcol.end(), (double) 0, thrust::plus<double>());
@@ -71,28 +72,26 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 		h_Xcol.shrink_to_fit();
 		d_Xcol.shrink_to_fit();	
 	}
-	
+
 	Matrix yCol, hCol;
 	yCol.width = 1;
 	hCol.width = 1;
+	//Xcol.width = 1;
 	yCol.height = Y.height;
 	hCol.height = H.height;
+	//Xcol.height = X.height;
 	yCol.elements = (double*)malloc(Y.height * sizeof(double));
 	hCol.elements = (double*)malloc(H.height * sizeof(double));
+	//Xcol.elements = (double*)malloc(X.height * sizeof(double));
 
 	for(int i=0; i < Xsum.width; i++) {
 		if(Xsum.elements[i] > maxColSum.elements[i]) {
 			//X(:,i) = exactTotalSum (Y(:,i), H(:,i), maxColSum(i), precision);
 			getCol(Y, yCol, i);
 			getCol(H, hCol, i);
-
 			exactTotalSum(yCol, hCol, maxColSum.elements[i], precision, Xcol);
-			
-			// copy col result back into X
-			// can be better parellelized
-			for(int j=0; j < X.width; j++) {
-				X.elements[j * X.width + i] = Xcol.elements[j];
-
+			for(int j=0; j < X.height; j++) {
+				X.elements[j*X.width + i] = Xcol.elements[j];
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 #include "matlib.cu"
-#define EPS 2.220446049250313e-16
+#define EPS 2.2204e-16
 
 void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x) {
 	// y and h are vectors, totalSum and precision are scalars

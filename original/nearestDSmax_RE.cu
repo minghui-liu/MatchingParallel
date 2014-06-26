@@ -9,7 +9,8 @@
 #include "maxColSumP.cu"
 
 #define BLOCK_SIZE 32
-#define EPS 2.220446049250313e-16
+#define EPS 2.2204e-16
+
 
 __global__
 void HKernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_Out) {
@@ -318,11 +319,12 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(Y, Yt);
 		//maxRowSum'
 		transpose(maxRowSum, maxRowSumT);
-		//transpose(F1, F1t);
+	//	transpose(F1, F1t);
 		//maxColSumP(Y', -H1', maxRowSum', precision)'
-		maxColSumP(Yt, negH1t, maxRowSumT, precision, F1t);
+		maxColSumP(Yt, negH1t, maxRowSumT, 0.01, F1t);
 		//F1
 		transpose(F1t, F1);
+
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
 		
@@ -334,18 +336,17 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		maxColSumP(Y, negH2, maxColSum, precision, F2);
 		// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));
 		lambda(lambda2, Y, F1, F2, lambda2);
-		
+	
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));
 		H(lambda3, Y, F2, H3);
 		matTimesScaler(H3, -1, negH3);
-		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );	
-		//vectorize(Y, Yv);
+		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );
 		transpose(Y, Yt);
-		//vectorize(negH3, negH3v);
 		transpose(negH3, negH3t);
 		exactTotalSum(Yt, negH3t, totalSum, precision, F3reshape);
 		reshape(F3reshape, F3);
+
 		//lambda3 = lambda3 - (Y ./ (F2+eps)) + (Y ./ (F3+eps));
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);

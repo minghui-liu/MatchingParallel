@@ -21,7 +21,7 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	// if out of boundary return
 	if (y >= d_Y.height || x >= d_Y.width) return;
-	
+
 	// create d_G1_col and d_G2_row	
 	Matrix d_G1_col, d_G2t_row;
 	d_G1_col.height = d_G1.height;
@@ -171,6 +171,5 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 
 	// call hypergraphMatching()
 	hypergraphMatching(Y, numberOfMatches, X, Z);
-	
 }
 
