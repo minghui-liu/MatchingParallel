@@ -80,8 +80,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		}
 		
 		// hard(r,c) = 1
-		err = cudaMemset(d_hard.elements+r*d_hard.width+c, 1, sizeof(double));
-		//printf("CUDA memset d_hard(r,c) to 1: %s\n", cudaGetErrorString(err));
+		*(hard.elements + r * hard.width + c) = 1;
 		
 		// soft(r,:) = -Inf;
 		dimBlock = dim3(BLOCK_SIZE_DIM1);
@@ -94,7 +93,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	}	
 	
 	// copy hard back to device
-	size = d_hard.width * d_hard.height * sizeof(double);
+	size = hard.width * hard.height * sizeof(double);
 	err = cudaMemcpy(hard.elements, d_hard.elements, size, cudaMemcpyDeviceToHost);
 	//printf("Copy d_hard off of device: %s\n", cudaGetErrorString(err));
 	
