@@ -2,7 +2,6 @@
 #define EPS 2.2204e-16
 
 void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x) {
-	printf("exactTotalSum()\n");
 	// y and h are vectors, totalSum and precision are scalars
 	// x is the return vector and length is the length of y, h, and x
 	
@@ -13,11 +12,9 @@ void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix
 	hAlpha.elements = (double*)malloc(hAlpha.width * hAlpha.height * sizeof(double));
 
 	double totalSumMinus = totalSum - precision;
-	printf("made it to thrust\n");
 	thrust::host_vector<double> H_h(h.elements, h.elements + h.width*h.height);
 	thrust::device_vector<double> D_h = H_h;
 	thrust::detail::normal_iterator<thrust::device_ptr<double> > MinIt = thrust::min_element(D_h.begin(), D_h.end());
-	printf("made it past thrust\n");
 	double Min = *MinIt;
 	double curAlpha = -Min + EPS;
 

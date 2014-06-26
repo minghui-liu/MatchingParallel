@@ -6,25 +6,20 @@
 #define BLOCK_SIZE_DIM1 1024
 
 __global__
-void negInfRow(Matrix d_In, int num) {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
+void negInfRow(Matrix d_In, int row) {
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row >= d_In.height || col >= d_In.width) return;
-	if(row == num) 
-		d_In.elements[row*d_In.width+col] = -INFINITY;
+	if(col >= d_In.width) return;
+	d_In.elements[row*d_In.width+col] = -INFINITY;
 }
 
 __global__
-void negInfCol(Matrix d_In, int num) {
-	int row = blockIdx.y * blockDim.y + threadIdx.y;
-	int col = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row >= d_In.height || col >= d_In.width) return;
-	if(col == num) 
-		d_In.elements[row*d_In.width+col] = -INFINITY;
+void negInfCol(Matrix d_In, int col) {
+	int row = blockIdx.x * blockDim.x + threadIdx.x;
+	if(row >= d_In.height) return;
+	d_In.elements[row*d_In.width+col] = -INFINITY;
 }
 
 void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
-	printf("soft2hard()\n");
 	// allocate d_soft on device memory
 	Matrix d_soft;
 	d_soft.height = soft.height;
@@ -35,19 +30,9 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	err = cudaMemcpy(d_soft.elements, soft.elements, size, cudaMemcpyHostToDevice);	
 	//printf("Copy soft to device: %s\n", cudaGetErrorString(err));
 
-	// allocate d_hard on device memory
-	Matrix d_hard;
-	d_hard.height = hard.height;
-	d_hard.width = hard.width;
-	size = d_hard.height * d_hard.width * sizeof(double);
-	err = cudaMalloc(&d_hard.elements, size);
-	//printf("CUDA malloc d_hard: %s\n", cudaGetErrorString(err));	
-		
 	// make d_hard an all zero matrix, invoke zeros kernel
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-	dim3 dimGrid( (d_hard.width+dimBlock.x-1)/dimBlock.x, (d_hard.height+dimBlock.y-1)/dimBlock.y );
-	zerosKernel<<<dimGrid, dimBlock>>>(d_hard);
-	
+	zeros(hard);
+
 	// allocate maxSoft one device
 	Matrix d_maxSoft;
 	d_maxSoft.height = d_soft.height;
@@ -67,8 +52,8 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		// maxSoft = max(soft,[],2);
 		// invoke maxOfMatrixRow kernel
 		//printf("maxOfMatrixRow()\n");
-		dimBlock = dim3(BLOCK_SIZE_DIM1);
-		dimGrid = dim3( (d_maxSoft.height + dimBlock.x - 1)/dimBlock.x );
+		dim3 dimBlock = dim3(BLOCK_SIZE_DIM1);
+		dim3 dimGrid = dim3( (d_maxSoft.height + dimBlock.x - 1)/dimBlock.x );
 		maxOfMatrixRow<<<dimGrid, dimBlock>>>(d_soft, d_maxSoft);
 		err = cudaThreadSynchronize();
 		//printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
@@ -149,7 +134,6 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 *******************************************************************************/
 void hypergraphMatching(Matrix Y, int numberOfMatches, Matrix X, Matrix Z) {
 
-	printf("hypergraphMatching()\n");
 	Matrix maxRowSum, maxColSum;
 	maxRowSum.height = Y.height;
 	maxRowSum.width = 1;

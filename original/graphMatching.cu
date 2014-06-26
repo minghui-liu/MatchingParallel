@@ -5,17 +5,6 @@
 
 #define BLOCK_SIZE 32
 
-
-
-__global__
-void debugPrint(Matrix d_M) {
-	int col = blockIdx.y * blockDim.y + threadIdx.y;
-	int row = blockIdx.x * blockDim.x + threadIdx.x;
-	if(row >= d_M.height || col >= d_M.width) return;
-	int idx = row*d_M.width+col;
-	printf("%.2f\n", d_M.elements[idx]);
-}
-
 // exp kernel
 __global__
 void expKernel(Matrix d_D, double sigma) {
@@ -33,7 +22,6 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	// if out of boundary return
 	if (y >= d_Y.height || x >= d_Y.width) return;
 	
-
 	// create d_G1_col and d_G2_row	
 	Matrix d_G1_col, d_G2t_row;
 	d_G1_col.height = d_G1.height;
