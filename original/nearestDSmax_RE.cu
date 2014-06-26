@@ -222,7 +222,6 @@ void Fun(Matrix A, Matrix B, Matrix C, Matrix Out) {
 }
 
 void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalSum, double maxLoops, double precision, Matrix F) {
-	printf("nearestDSmax_RE()\n");
 	int size = Y.height * Y.width * sizeof(double);
 
 	// lambda1 = zeroes(size(Y));
@@ -317,17 +316,8 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	maxRowSumT.height = 1;
 	maxRowSumT.elements = (double*)malloc(maxRowSumT.width*sizeof(double));
 
-/*	Matrix Yv, negH3v;
-	Yv.height = Y.height*Y.width;
-	Yv.width = negH3v.width = 1;
-	negH3v.height = negH3.height * negH3.width;
-	Yv.elements = (double*)malloc(Yv.height * sizeof(double));
-	negH3v.elements = (double*)malloc(negH3v.height * sizeof(double));
-*/
-
 	//for t = 1 : maxLoops
 	for(int t=0; t < maxLoops; t++) {
-
 	// Max row sum
 		// H1 = lambda1 - (Y ./ (F3+eps));
 		H(lambda1, Y, F3, H1);
@@ -346,9 +336,7 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(F1t, F1);
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
-
-	/*************** clean above *** debug the following code ***************/
-
+	
 	// Max col sum 
 		// H2 = lambda2 - (Y ./ (F1+eps));
 		H(lambda2, Y, F1, H2);
@@ -356,15 +344,7 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		matTimesScaler(H2, -1, negH2);
 		maxColSumP(Y, negH2, maxColSum, precision, F2);
 		// lambda2 = lambda2 - (Y ./ (F1+eps)) + (Y ./ (F2+eps));
-		// !!! RETURNS ALL NEGATIVE ZEROS
-		// !!! DEBUG LAMBDA KERNEL
-		printf("F2:\n");
-		printMatrix(F2);
-		printf("lambda2 before lambda kernel:\n");
-		printMatrix(lambda2);
 		lambda(lambda2, Y, F1, F2, lambda2);
-		printf("lambda2:\n");
-		printMatrix(lambda2);
 		
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));
@@ -378,8 +358,6 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		//vectorize(negH3, negH3v);
 		transpose(negH3, negH3t);
 		exactTotalSum(Yt, negH3t, totalSum, precision, F3reshape);
-		printf("F3reshape\n");
-		printMatrix(F3reshape);
 		reshape(F3reshape, F3);
 		printf("F3:\n");
 		printMatrix(F3);
@@ -387,8 +365,6 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
-		printf("lambda3\n");
-		printMatrix(lambda3);
 	
 		// max and min of Fdiff1
 		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
@@ -405,9 +381,6 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		double fdMax1 = max(*Fdiff1max, fabs(*Fdiff1min));
 		double fdMax2 = max(*Fdiff2max, fabs(*Fdiff2min));
 	
-		printf("[DEBUG]:fdMax1 = %.4f\n", fdMax1);
-		printf("[DEBUG]:fdMax2 = %.4f\n", fdMax2);
-		printf("precision: %.4f\n", precision);
 		if(fabs(fdMax1) < precision && fabs(fdMax2) < precision)
 			break;
 	
