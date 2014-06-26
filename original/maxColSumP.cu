@@ -17,8 +17,6 @@ void unconstrainedPKernel(Matrix d_X) {
 }
 
 void unconstrainedP(Matrix Y, Matrix H, Matrix X) {
-	printf("uncontraindedP()\n");
-
 	matDiv(Y, H, X);
 	
 	// load X to device memory
@@ -44,11 +42,9 @@ void unconstrainedP(Matrix Y, Matrix H, Matrix X) {
 
 	// free device memory
 	cudaFree(d_X.elements);
-
 }
 
 void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X) {
-	printf("maxColSumP()\n");
 	// unconstrainedP is clean	
 	unconstrainedP(Y, H, X);
 
@@ -75,8 +71,7 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 		h_Xcol.shrink_to_fit();
 		d_Xcol.shrink_to_fit();	
 	}
-
-
+	
 	Matrix yCol, hCol;
 	yCol.width = 1;
 	hCol.width = 1;
@@ -87,15 +82,9 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X
 
 	for(int i=0; i < Xsum.width; i++) {
 		if(Xsum.elements[i] > maxColSum.elements[i]) {
-			//printf("i is now %d\n", i);
 			//X(:,i) = exactTotalSum (Y(:,i), H(:,i), maxColSum(i), precision);
 			getCol(Y, yCol, i);
 			getCol(H, hCol, i);
-			
-			/*printf("yCol:\n");
-			printMatrix(yCol);
-			printf("hCol:\n");
-			printMatrix(hCol);*/
 
 			exactTotalSum(yCol, hCol, maxColSum.elements[i], precision, Xcol);
 			

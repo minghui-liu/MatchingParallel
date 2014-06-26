@@ -1,6 +1,4 @@
 #include <stdio.h>
-//#include <stdlib.h>
-//#include <math.h>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/extrema.h>
@@ -12,15 +10,6 @@
 
 #define BLOCK_SIZE 32
 #define EPS 2.220446049250313e-16
-
-void vectorize(Matrix X, Matrix V){
-
-	for(int i=0; i < X.width; i++){
-		for(int j=0; j < X.height; j++){
-			V.elements[i*X.width + j] = X.elements[j*X.width + i];
-		}
-	}
-}
 
 __global__
 void HKernel(Matrix d_A, Matrix d_B, Matrix d_C, Matrix d_Out) {
@@ -336,8 +325,8 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(F1t, F1);
 		// lambda1 = lambda1 - (Y ./ (F3+eps)) + (Y ./ (F1+eps));
 		lambda(lambda1, Y, F3, F1, lambda1);
-	
-	// Max col sum 
+		
+	// Max col sum
 		// H2 = lambda2 - (Y ./ (F1+eps));
 		H(lambda2, Y, F1, H2);
 		// F2 = maxColSumP (Y, -H2, maxColSum, precision);
