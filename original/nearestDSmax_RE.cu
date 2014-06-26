@@ -338,8 +338,6 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	// Total sum
 		// H3 = lambda3 - (Y ./ (F2 + eps));
 		H(lambda3, Y, F2, H3);
-		printf("H3\n");
-		printMatrix(H3);
 		matTimesScaler(H3, -1, negH3);
 		// F3 = reshape( exactTotalSum (Y(:), -H3(:), totalSum, precision), size(Y) );	
 		//vectorize(Y, Yv);
@@ -348,8 +346,6 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		transpose(negH3, negH3t);
 		exactTotalSum(Yt, negH3t, totalSum, precision, F3reshape);
 		reshape(F3reshape, F3);
-		printf("F3:\n");
-		printMatrix(F3);
 		//lambda3 = lambda3 - (Y ./ (F2+eps)) + (Y ./ (F3+eps));
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);

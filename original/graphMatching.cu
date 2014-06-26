@@ -98,7 +98,6 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
  
 	Y [Output]  	Debug information.
 	*****************************************************************************************/
-	printf("graphMatching()\n");
 	if (isSymmetric(G1) == 0)
 		printf("G1 is not symmetric!\n");
 	if (isSymmetric(G2) == 0)

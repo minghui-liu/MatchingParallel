@@ -92,14 +92,8 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		negInfCol<<<dimGrid, dimBlock>>>(d_soft, c);
 	}	
 	
-	// copy hard back to device
-	size = hard.width * hard.height * sizeof(double);
-	err = cudaMemcpy(hard.elements, d_hard.elements, size, cudaMemcpyDeviceToHost);
-	//printf("Copy d_hard off of device: %s\n", cudaGetErrorString(err));
-	
 	// free device memory
 	cudaFree(d_soft.elements);
-	cudaFree(d_hard.elements);
 	cudaFree(d_maxSoft.elements);
 	cudaFree(d_soft_r.elements);
 	
