@@ -27,7 +27,6 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	d_G1_col.height = d_G1.height;
 	d_G1_col.width = 1;
 	size_t size = d_G1_col.width * d_G1_col.height * sizeof(double);
-	printf("CUDA malloc d_G1_col: %s\n", cudaGetErrorString(err));
 	cudaError_t err = cudaMalloc(&d_G1_col.elements, size);
 	printf("CUDA malloc d_G1_col: %s\n", cudaGetErrorString(err));
 	d_G2t_row.height = 1;
