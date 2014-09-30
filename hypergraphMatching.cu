@@ -68,23 +68,27 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		err = cudaThreadSynchronize();
 		//printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
 		
+		printf("before dummy and r\n");		
 		// [dummy,r] = max(maxSoft);
 		thrust::device_vector<double> D_maxSoft(d_maxSoft.elements, d_maxSoft.elements + d_maxSoft.width * d_maxSoft.height);
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > dummyIt = thrust::max_element(D_maxSoft.begin(), D_maxSoft.end());
 		int r = dummyIt - D_maxSoft.begin();
-		
+		printf("after dummy and r\n");		
+
 		// soft(r,:)
 		// invoke getRow kernel
 		dimBlock = dim3(BLOCK_SIZE, BLOCK_SIZE);		
 		dimGrid = dim3( (d_soft.width + dimBlock.x - 1)/dimBlock.x ,(d_soft.height + dimBlock.y - 1)/dimBlock.y );
 		getRowKernel<<<dimGrid, dimBlock>>>(d_soft, d_soft_r, r);
-		
+	
+		printf("before val and c\n");	
 		// [val,c] = max(soft(r,:));
 		thrust::device_vector<double> D_soft_r(d_soft_r.elements, d_soft_r.elements + d_soft_r.width * d_soft_r.height);
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > valIt = thrust::max_element(D_soft_r.begin(), D_soft_r.end());
 		double val = *valIt;
 		int c = valIt - D_soft_r.begin();
-		
+		printf("after val and c\n");		
+
 		if (val < 0) { 
 			return;
 		}

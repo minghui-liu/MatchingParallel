@@ -233,11 +233,13 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	F1.elements = (double*)malloc(size);
 	F2.elements = (double*)malloc(size);
 	F3.elements = (double*)malloc(size);
-
+	
+	printf("before sum(Y(:))\n");
 	// sum(Y(:))
 	thrust::host_vector<double> h_Y(Y.elements, Y.elements + Y.width * Y.height);
 	thrust::device_vector<double> d_Y = h_Y;
 	double Ysum = thrust::reduce(d_Y.begin(), d_Y.end(), (double) 0, thrust::plus<double>());
+	printf("after sum(Y(:))\n");
 
 	// Y ./ sum(Y(:))
 	Matrix YdivYsum;
@@ -351,18 +353,22 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 		lambda(lambda3, Y, F2, F3, lambda3);
 		matSub(F1, F2, Fdiff1);
 		matSub(F1, F3, Fdiff2);
-	
+
+		printf("before max and min of Fdiff1\n");	
 		// max and min of Fdiff1
 		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
 		thrust::device_vector<double> d_Fdiff1 = h_Fdiff1;
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1max = thrust::max_element(d_Fdiff1.begin(), d_Fdiff1.end());
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1min = thrust::min_element(d_Fdiff1.begin(), d_Fdiff1.end());
+		printf("after max and min of Fdiff1\n");	
 		
+		printf("before max and min of Fdiff2\n");	
 		// max and min of Fdiff2
 		thrust::host_vector<double> h_Fdiff2(Fdiff2.elements, Fdiff2.elements + Fdiff2.width*Fdiff2.height);
 		thrust::device_vector<double> d_Fdiff2 = h_Fdiff2;
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2max = thrust::max_element(d_Fdiff2.begin(), d_Fdiff2.end());
 		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2min = thrust::min_element(d_Fdiff2.begin(), d_Fdiff2.end());
+		printf("after max and min of Fdiff\n");	
 
 		double fdMax1 = max(*Fdiff1max, fabs(*Fdiff1min));
 		double fdMax2 = max(*Fdiff2max, fabs(*Fdiff2min));
