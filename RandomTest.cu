@@ -16,11 +16,11 @@
 #include "matlib.cu"
 
 #define PI 3.14159265
-#define TEST_SIZE 20
+#define TEST_SIZE	28 
 
 //function returns a random double value in the interval [0, 2PI]
 double randomdoubleAngle() {
-  //generate random double between 0 and 1
+	//generate random double between 0 and 1
   double r = (double)rand()/(double)RAND_MAX;
   //scale to the 0 to 2PI range
   r *= (2*PI);
@@ -30,12 +30,8 @@ double randomdoubleAngle() {
 //function returns a random double value in the interval [0,1]
 double randomdouble() {
   //generate random double between 0 and 1
-  double r = (double)rand()/(double)RAND_MAX;
-  
-  if(rand()%2 == 0)
-    return r;
-  else
-    return -r;
+  double r = (double)rand() / (double)RAND_MAX;
+  return r;
 }
 
 //function takes in a set of points, rotates them and then returns the new set
@@ -51,8 +47,8 @@ void pointDistort(Matrix V1, Matrix V2, double centerX, double centerY) {
   double distortionX;
   double distortionY;
   for(int i=0; i < V1.height; i++){
-    distortionX = randomdouble()/10;
-    distortionY = randomdouble()/10;
+    distortionX = (2*randomdouble()-1)/100;
+    distortionY = (2*randomdouble()-1)/100;
     *(V2.elements + i * V2.width) = distortionX + *(V1.elements + i * V1.width);
     *(V2.elements + i * V2.width + 1) = distortionY + *(V2.elements + i * V2.width + 1);
   }
@@ -75,8 +71,11 @@ void neighborDistances(Matrix V1, Matrix neighborDist) {
 
 }
 
-int main() {
-  int size = TEST_SIZE;
+int main(int argc, char *argv[]) {
+	// initialize random generator with time as seed
+  srand(time(NULL));
+
+  int size = atoi(argv[1]);
   
   Matrix V1, V2;
   V1.width = V2.width = 2;
@@ -89,11 +88,13 @@ int main() {
     *(V2.elements + i * V2.width + 1) = *(V1.elements + i * V1.width + 1) = randomdouble();
   }
   printMatrix(V1);
+	saveMatrix(V1, "output/nodes1.txt");
   
-  rotate(V1, V2, 0, 0);
+  rotate(V1, V2, 0.5, 0.5);
   pointDistort(V2, V2, 0, 0);
   
   printMatrix(V2);
+	saveMatrix(V2, "output/nodes2.txt");
   
  	Matrix neighborDist1, neighborDist2;
 	neighborDist1.width = neighborDist1.height = size;
@@ -106,9 +107,11 @@ int main() {
   
   printf("neighbor Distances 1\n");
   printMatrix(neighborDist1);
-  
+	saveMatrix(neighborDist1, "output/edges1.txt");
+
   printf("neighbor distances 2\n");
   printMatrix(neighborDist2);
+	saveMatrix(neighborDist2, "output/edges2.txt");
   
 	Matrix X, Y, Z;
 	X.width = X.height = size;
@@ -126,5 +129,6 @@ int main() {
   printMatrix(Z);
   printf("Y(debug):\n");
   printMatrix(Y);
- 
+	saveMatrix(X, "output/hard.txt");
+	saveMatrix(Z, "output/soft.txt");
 }
