@@ -27,6 +27,20 @@ void printMatrix(Matrix A) {
 	printf("\n");
 }
 
+// function to save matrix in an ascii file */
+void saveMatrix(Matrix A, char *filename) {
+	FILE *fp;
+	fp = fopen(filename, "w");
+	for (int i=0; i<A.height; i++) {
+		for (int j=0; j<A.width; j++) {
+			fprintf(fp, "%.4f ", A.elements[i*A.width+j]); 
+		}
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+}
+
+
 /*** matlib functions listed in alphabetical order *****/
 
 
