@@ -26,7 +26,7 @@ void H(Matrix A, Matrix B, Matrix C, Matrix Out) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -53,7 +53,7 @@ void H(Matrix A, Matrix B, Matrix C, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
 	d_Out.width = Out.width; d_Out.height = Out.height;
-	size = Out.width * Out.height * sizeof(double);
+	size = Out.width * Out.height * sizeof(float);
 	cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -89,7 +89,7 @@ void lambda(Matrix A, Matrix B, Matrix C, Matrix D, Matrix Out) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -125,7 +125,7 @@ void lambda(Matrix A, Matrix B, Matrix C, Matrix D, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
 	d_Out.width = Out.width; d_Out.height = Out.height;
-	size = Out.width * Out.height * sizeof(double);
+	size = Out.width * Out.height * sizeof(float);
 	err = cudaMalloc(&d_Out.elements, size);
 	//printf("CUDA malloc Out: %s\n", cudaGetErrorString(err));
 
@@ -162,7 +162,7 @@ void Fun(Matrix A, Matrix B, Matrix C, Matrix Out) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -189,7 +189,7 @@ void Fun(Matrix A, Matrix B, Matrix C, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
 	d_Out.width = Out.width; d_Out.height = Out.height;
-	size = Out.width * Out.height * sizeof(double);
+	size = Out.width * Out.height * sizeof(float);
 	err = cudaMalloc(&d_Out.elements, size);
 	//printf("CUDA malloc Out: %s\n", cudaGetErrorString(err));
 	
@@ -211,16 +211,16 @@ void Fun(Matrix A, Matrix B, Matrix C, Matrix Out) {
 	cudaFree(d_Out.elements);
 }
 
-void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalSum, double maxLoops, double precision, Matrix F) {
-	int size = Y.height * Y.width * sizeof(double);
+void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, float totalSum, float maxLoops, float precision, Matrix F) {
+	int size = Y.height * Y.width * sizeof(float);
 
 	// lambda1 = zeroes(size(Y));
 	Matrix lambda1, lambda2, lambda3;
 	lambda1.height = lambda2.height = lambda3.height = Y.height;
 	lambda1.width = lambda2.width = lambda3.width = Y.width;
-	lambda1.elements = (double*)malloc(size);
-	lambda2.elements = (double*)malloc(size);
-	lambda3.elements = (double*)malloc(size);
+	lambda1.elements = (float*)malloc(size);
+	lambda2.elements = (float*)malloc(size);
+	lambda3.elements = (float*)malloc(size);
 	zeros(lambda1);
 	// lambda2 = lambda1;  lambda3 = lambda1;
 	memcpy(lambda2.elements, lambda1.elements, size);
@@ -230,22 +230,22 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	Matrix F1, F2, F3;
 	F1.height = F2.height = F3.height = Y.height;
 	F1.width = F2.width = F3.width = Y.width;
-	F1.elements = (double*)malloc(size);
-	F2.elements = (double*)malloc(size);
-	F3.elements = (double*)malloc(size);
+	F1.elements = (float*)malloc(size);
+	F2.elements = (float*)malloc(size);
+	F3.elements = (float*)malloc(size);
 	
 	printf("before sum(Y(:))\n");
 	// sum(Y(:))
-	thrust::host_vector<double> h_Y(Y.elements, Y.elements + Y.width * Y.height);
-	thrust::device_vector<double> d_Y = h_Y;
-	double Ysum = thrust::reduce(d_Y.begin(), d_Y.end(), (double) 0, thrust::plus<double>());
+	thrust::host_vector<float> h_Y(Y.elements, Y.elements + Y.width * Y.height);
+	thrust::device_vector<float> d_Y = h_Y;
+	float Ysum = thrust::reduce(d_Y.begin(), d_Y.end(), (float) 0, thrust::plus<float>());
 	printf("after sum(Y(:))\n");
 
 	// Y ./ sum(Y(:))
 	Matrix YdivYsum;
 	YdivYsum.width = Y.width;
 	YdivYsum.height = Y.height;
-	YdivYsum.elements = (double*)malloc(size);
+	YdivYsum.elements = (float*)malloc(size);
 	matTimesScaler(Y, 1/Ysum, YdivYsum);
 	matTimesScaler(YdivYsum, totalSum, F1);
 	// F2 = F1;  F3 = F1;
@@ -255,29 +255,29 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	Matrix H1, H2, H3;
 	H1.width = H2.width = H3.width = Y.width;
 	H1.height = H2.height = H3.height = Y.height;
-	H1.elements = (double*)malloc(size);
-	H2.elements = (double*)malloc(size);
-	H3.elements = (double*)malloc(size);
+	H1.elements = (float*)malloc(size);
+	H2.elements = (float*)malloc(size);
+	H3.elements = (float*)malloc(size);
 
 	Matrix F1eps, F2eps, F3eps;
 	F1eps.width = F2eps.width = F3eps.width = Y.width;
 	F1eps.height = F2eps.height = F3eps.height = Y.height;
-	F1eps.elements = (double*)malloc(size);
-	F2eps.elements = (double*)malloc(size);
-	F3eps.elements = (double*)malloc(size);
+	F1eps.elements = (float*)malloc(size);
+	F2eps.elements = (float*)malloc(size);
+	F3eps.elements = (float*)malloc(size);
 
 	Matrix YdivF1eps, YdivF2eps, YdivF3eps;
 	YdivF1eps.width = YdivF2eps.width = YdivF3eps.width = Y.width;
 	YdivF1eps.height = YdivF2eps.height = YdivF3eps.height = Y.height;
-	YdivF1eps.elements = (double*)malloc(size);
-	YdivF2eps.elements = (double*)malloc(size);
-	YdivF3eps.elements = (double*)malloc(size);
+	YdivF1eps.elements = (float*)malloc(size);
+	YdivF2eps.elements = (float*)malloc(size);
+	YdivF3eps.elements = (float*)malloc(size);
 
 	Matrix negH2, negH3;
 	negH2.width = negH3.width = Y.width;
 	negH2.height = negH3.height = Y.height;
-	negH2.elements = (double*)malloc(size);
-	negH3.elements = (double*)malloc(size);
+	negH2.elements = (float*)malloc(size);
+	negH3.elements = (float*)malloc(size);
 
 	// transposed matrices
 	Matrix H1t, negH1t, Yt, F1t, negH3t;
@@ -285,28 +285,28 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 	H1t.height = negH1t.height = Yt.height = F1t.height = Y.width;
 	negH3t.height = H3.width;
 	negH3t.width = H3.height;
-	negH3t.elements = (double*)malloc(size);
-	H1t.elements = (double*)malloc(size);
-	negH1t.elements = (double*)malloc(size);
-	Yt.elements = (double*)malloc(size);
-	F1t.elements = (double*)malloc(size);
+	negH3t.elements = (float*)malloc(size);
+	H1t.elements = (float*)malloc(size);
+	negH1t.elements = (float*)malloc(size);
+	Yt.elements = (float*)malloc(size);
+	F1t.elements = (float*)malloc(size);
 
 	Matrix Fdiff1, Fdiff2;
 	Fdiff1.width = Fdiff2.width = Y.width;
 	Fdiff1.height = Fdiff2.height = Y.height;
-	Fdiff1.elements = (double*)malloc(size);
-	Fdiff2.elements = (double*)malloc(size); 
+	Fdiff1.elements = (float*)malloc(size);
+	Fdiff2.elements = (float*)malloc(size); 
 
 	// F3reshape is a col vector
 	Matrix F3reshape;
 	F3reshape.width = 1;
 	F3reshape.height = Y.width*Y.height;
-	F3reshape.elements = (double*)malloc(size);
+	F3reshape.elements = (float*)malloc(size);
 			
 	Matrix maxRowSumT;
 	maxRowSumT.width = Y.height;
 	maxRowSumT.height = 1;
-	maxRowSumT.elements = (double*)malloc(maxRowSumT.width*sizeof(double));
+	maxRowSumT.elements = (float*)malloc(maxRowSumT.width*sizeof(float));
 
 	//for t = 1 : maxLoops
 	for(int t=0; t < maxLoops; t++) {
@@ -356,22 +356,22 @@ void nearestDSmax_RE(Matrix Y, Matrix maxRowSum, Matrix maxColSum, double totalS
 
 		printf("before max and min of Fdiff1\n");	
 		// max and min of Fdiff1
-		thrust::host_vector<double> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
-		thrust::device_vector<double> d_Fdiff1 = h_Fdiff1;
-		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1max = thrust::max_element(d_Fdiff1.begin(), d_Fdiff1.end());
-		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff1min = thrust::min_element(d_Fdiff1.begin(), d_Fdiff1.end());
+		thrust::host_vector<float> h_Fdiff1(Fdiff1.elements, Fdiff1.elements + Fdiff1.width*Fdiff1.height);
+		thrust::device_vector<float> d_Fdiff1 = h_Fdiff1;
+		thrust::detail::normal_iterator<thrust::device_ptr<float> > Fdiff1max = thrust::max_element(d_Fdiff1.begin(), d_Fdiff1.end());
+		thrust::detail::normal_iterator<thrust::device_ptr<float> > Fdiff1min = thrust::min_element(d_Fdiff1.begin(), d_Fdiff1.end());
 		printf("after max and min of Fdiff1\n");	
 		
 		printf("before max and min of Fdiff2\n");	
 		// max and min of Fdiff2
-		thrust::host_vector<double> h_Fdiff2(Fdiff2.elements, Fdiff2.elements + Fdiff2.width*Fdiff2.height);
-		thrust::device_vector<double> d_Fdiff2 = h_Fdiff2;
-		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2max = thrust::max_element(d_Fdiff2.begin(), d_Fdiff2.end());
-		thrust::detail::normal_iterator<thrust::device_ptr<double> > Fdiff2min = thrust::min_element(d_Fdiff2.begin(), d_Fdiff2.end());
+		thrust::host_vector<float> h_Fdiff2(Fdiff2.elements, Fdiff2.elements + Fdiff2.width*Fdiff2.height);
+		thrust::device_vector<float> d_Fdiff2 = h_Fdiff2;
+		thrust::detail::normal_iterator<thrust::device_ptr<float> > Fdiff2max = thrust::max_element(d_Fdiff2.begin(), d_Fdiff2.end());
+		thrust::detail::normal_iterator<thrust::device_ptr<float> > Fdiff2min = thrust::min_element(d_Fdiff2.begin(), d_Fdiff2.end());
 		printf("after max and min of Fdiff\n");	
 
-		double fdMax1 = max(*Fdiff1max, fabs(*Fdiff1min));
-		double fdMax2 = max(*Fdiff2max, fabs(*Fdiff2min));
+		float fdMax1 = max(*Fdiff1max, fabs(*Fdiff1min));
+		float fdMax2 = max(*Fdiff2max, fabs(*Fdiff2min));
 	
 		if(fabs(fdMax1) < precision && fabs(fdMax2) < precision)
 			break;

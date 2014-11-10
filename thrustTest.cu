@@ -29,13 +29,13 @@ int main(){
 	size_t m = (NODES*NODES)/2 - NODES/2;
 
 	curandGenerator_t gen, gen1;
-	double *devData, *hostData, *devData1, *hostAdjacent;
+	float *devData, *hostData, *devData1, *hostAdjacent;
 
-	hostData = (double *)calloc(n, sizeof(double));
-	hostAdjacent = (double *)calloc(m, sizeof(double));
+	hostData = (float *)calloc(n, sizeof(float));
+	hostAdjacent = (float *)calloc(m, sizeof(float));
 
-	CUDA_CALL(cudaMalloc((void **)&devData, n*sizeof(double)));
-	CUDA_CALL(cudaMalloc((void **)&devData1, m*sizeof(double)));
+	CUDA_CALL(cudaMalloc((void **)&devData, n*sizeof(float)));
+	CUDA_CALL(cudaMalloc((void **)&devData1, m*sizeof(float)));
 
 	CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT));
 	CURAND_CALL(curandCreateGenerator(&gen1, CURAND_RNG_PSEUDO_DEFAULT));
@@ -43,11 +43,11 @@ int main(){
 	CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, 1234ULL));
 	CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen1, 1234ULL));
 
-	CURAND_CALL(curandGenerateUniformDouble(gen, devData, n));
-	CURAND_CALL(curandGenerateUniformDouble(gen1, devData1, m));
+	CURAND_CALL(curandGenerateUniformfloat(gen, devData, n));
+	CURAND_CALL(curandGenerateUniformfloat(gen1, devData1, m));
 
-	CUDA_CALL(cudaMemcpy(hostData, devData, n * sizeof(double), cudaMemcpyDeviceToHost));
-	CUDA_CALL(cudaMemcpy(hostAdjacent, devData1, m * sizeof(double), cudaMemcpyDeviceToHost));
+	CUDA_CALL(cudaMemcpy(hostData, devData, n * sizeof(float), cudaMemcpyDeviceToHost));
+	CUDA_CALL(cudaMemcpy(hostAdjacent, devData1, m * sizeof(float), cudaMemcpyDeviceToHost));
 
 	for(i = 0; i < 10; i++){
 		for(size_t j = 0; j < 10; j++){
@@ -62,17 +62,17 @@ int main(){
 	CURAND_CALL(curandDestroyGenerator(gen1));
 	CUDA_CALL(cudaFree(devData1));
 
-	thrust::host_vector<double> H(hostData, hostData + NODES);
+	thrust::host_vector<float> H(hostData, hostData + NODES);
 
 	std::cout << "H has size " << H.size() << std::endl;
 
-	thrust::device_vector<double> D = H;
+	thrust::device_vector<float> D = H;
 
-//	double* maxResult = thrust::max_element(thrust::host, D.begin(), D.end());
+//	float* maxResult = thrust::max_element(thrust::host, D.begin(), D.end());
 
-	thrust::detail::normal_iterator<thrust::device_ptr<double> > maxResult = thrust::max_element(D.begin(), D.end());
+	thrust::detail::normal_iterator<thrust::device_ptr<float> > maxResult = thrust::max_element(D.begin(), D.end());
 
-	//thrust::host_vector<double> h_maxResult = maxResult;
+	//thrust::host_vector<float> h_maxResult = maxResult;
 
 	std::cout << "maxResult is " << *maxResult << std::endl;
 

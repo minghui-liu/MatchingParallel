@@ -7,7 +7,7 @@
 
 // exp kernel
 __global__
-void expKernel(Matrix d_D, double sigma) {
+void expKernel(Matrix d_D, float sigma) {
 	int col = blockIdx.y * blockDim.y + threadIdx.y;
 	int row = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_D.height || col >= d_D.width) return;
@@ -26,18 +26,18 @@ void calculateD(Matrix d_G1_col, Matrix d_G2t_row, Matrix d_D) {
 }
 
 __global__
-void expDkernel(Matrix d_G1_col, Matrix d_G2t_row, Matrix d_Y, double sigma) {
+void expDkernel(Matrix d_G1_col, Matrix d_G2t_row, Matrix d_Y, float sigma) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_Y.height || col >= d_Y.width) return;
 	//int idx = row * d_Y.width + col;
-	double d = d_G1_col.elements[row] - d_G2t_row.elements[col];
-	double e = exp(-d * d / sigma);
+	float d = d_G1_col.elements[row] - d_G2t_row.elements[col];
+	float e = exp(-d * d / sigma);
 	d_Y.elements[row * d_Y.width + col] += e;
 }
 
 __global__
-void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
+void marginalize(Matrix d_G1, Matrix d_G2t, float sigma, Matrix d_Y) {
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	// if out of boundary return
@@ -47,12 +47,12 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	Matrix d_G1_col, d_G2t_row;
 	d_G1_col.height = d_G1.height;
 	d_G1_col.width = 1;
-	size_t size = d_G1_col.width * d_G1_col.height * sizeof(double);
+	size_t size = d_G1_col.width * d_G1_col.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_G1_col.elements, size);
 	printf("CUDA malloc d_G1_col: %s\n", cudaGetErrorString(err));
 	d_G2t_row.height = 1;
 	d_G2t_row.width = d_G2t.width;
-	size = d_G2t_row.width * d_G2t_row.height * sizeof(double);
+	size = d_G2t_row.width * d_G2t_row.height * sizeof(float);
 	err = cudaMalloc(&d_G2t_row.elements, size);
 	printf("CUDA malloc d_G2t_row: %s\n", cudaGetErrorString(err));
 
@@ -78,7 +78,7 @@ void marginalize(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 }
 	
 __global__
-void marginalize1(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
+void marginalize1(Matrix d_G1, Matrix d_G2t, float sigma, Matrix d_Y) {
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	// if out of boundary return
@@ -88,7 +88,7 @@ void marginalize1(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	Matrix d_D;
 	d_D.height = d_Y.height;
 	d_D.width = d_Y.width;
-	size_t size = d_D.width * d_D.height * sizeof(double);
+	size_t size = d_D.width * d_D.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_D.elements, size);
 	printf("CUDA malloc d_D: %s\n", cudaGetErrorString(err));
 	
@@ -96,12 +96,12 @@ void marginalize1(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	Matrix d_G1_col, d_G2t_row;
 	d_G1_col.height = d_G1.height;
 	d_G1_col.width = 1;
-	size = d_G1_col.width * d_G1_col.height * sizeof(double);
+	size = d_G1_col.width * d_G1_col.height * sizeof(float);
 	err = cudaMalloc(&d_G1_col.elements, size);
 	printf("CUDA malloc d_G1_col: %s\n", cudaGetErrorString(err));
 	d_G2t_row.height = 1;
 	d_G2t_row.width = d_G2t.width;
-	size = d_G2t_row.width * d_G2t_row.height * sizeof(double);
+	size = d_G2t_row.width * d_G2t_row.height * sizeof(float);
 	err = cudaMalloc(&d_G2t_row.elements, size);
 	printf("CUDA malloc d_G2t_row: %s\n", cudaGetErrorString(err));
 
@@ -135,7 +135,7 @@ void marginalize1(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 
 
 __global__
-void marginalize0(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
+void marginalize0(Matrix d_G1, Matrix d_G2t, float sigma, Matrix d_Y) {
 	int y = blockIdx.y * blockDim.y + threadIdx.y;
 	int x = blockIdx.x * blockDim.x + threadIdx.x;
 	// if out of boundary return
@@ -145,12 +145,12 @@ void marginalize0(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	Matrix d_G1_col, d_G2t_row;
 	d_G1_col.height = d_G1.height;
 	d_G1_col.width = 1;
-	size_t size = d_G1_col.width * d_G1_col.height * sizeof(double);
+	size_t size = d_G1_col.width * d_G1_col.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_G1_col.elements, size);
 	printf("CUDA malloc d_G1_col: %s\n", cudaGetErrorString(err));
 	d_G2t_row.height = 1;
 	d_G2t_row.width = d_G2t.width;
-	size = d_G2t_row.width * d_G2t_row.height * sizeof(double);
+	size = d_G2t_row.width * d_G2t_row.height * sizeof(float);
 	err = cudaMalloc(&d_G2t_row.elements, size);
 	printf("CUDA malloc d_G2t_row: %s\n", cudaGetErrorString(err));
 	
@@ -170,13 +170,13 @@ void marginalize0(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	Matrix d_D, d_D1, d_D2;
 	d_D.height = d_D1.height = d_D2.height = d_Y.height;
 	d_D.width = d_D1.width = d_D2.width = d_Y.width;
-	size = d_D.width * d_D.height * sizeof(double);
+	size = d_D.width * d_D.height * sizeof(float);
 	err = cudaMalloc(&d_D.elements, size);
 	printf("CUDA malloc d_D: %s\n", cudaGetErrorString(err));
-	size = d_D1.width * d_D1.height * sizeof(double);
+	size = d_D1.width * d_D1.height * sizeof(float);
 	err = cudaMalloc(&d_D1.elements, size);
 	printf("CUDA malloc d_D1: %s\n", cudaGetErrorString(err));
-	size = d_D2.width * d_D2.height * sizeof(double);
+	size = d_D2.width * d_D2.height * sizeof(float);
 	err = cudaMalloc(&d_D2.elements, size);
 	printf("CUDA malloc d_D2: %s\n", cudaGetErrorString(err));
 
@@ -208,7 +208,7 @@ void marginalize0(Matrix d_G1, Matrix d_G2t, double sigma, Matrix d_Y) {
 	
 }
 
-void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matrix X, Matrix Z, Matrix Y) {
+void graphMatching(Matrix G1, Matrix G2, float sigma, int numberOfMatches, Matrix X, Matrix Z, Matrix Y) {
 	/****************************************************************************************	
 	Algorithm due to R. Zass and A. Shashua.,
  	'Probabilistic Graph and Hypergraph Matching.',
@@ -239,7 +239,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	Matrix d_G1;
 	d_G1.width = G1.width;
 	d_G1.height = G1.height;
-	size_t size = d_G1.width * d_G1.height * sizeof(double);
+	size_t size = d_G1.width * d_G1.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_G1.elements, size);
 	printf("CUDA malloc d_G1: %s\n", cudaGetErrorString(err));	
 	err = cudaMemcpy(d_G1.elements, G1.elements, size, cudaMemcpyHostToDevice);	
@@ -249,7 +249,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	Matrix d_G2;
 	d_G2.width = G2.height;
 	d_G2.height = G2.width;
-	size = d_G2.width * d_G2.height * sizeof(double);
+	size = d_G2.width * d_G2.height * sizeof(float);
 	err = cudaMalloc(&d_G2.elements, size);
 	printf("CUDA malloc d_G2: %s\n", cudaGetErrorString(err));	
 	err = cudaMemcpy(d_G2.elements, G2.elements, size, cudaMemcpyHostToDevice);	
@@ -260,7 +260,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	Matrix d_G2t;
 	d_G2t.width = G2.height;
 	d_G2t.height = G2.width;
-	size = d_G2t.width * d_G2t.height * sizeof(double);
+	size = d_G2t.width * d_G2t.height * sizeof(float);
 	err = cudaMalloc(&d_G2t.elements, size);
 	printf("CUDA malloc G2t: %s\n", cudaGetErrorString(err));	
 
@@ -280,7 +280,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	Matrix d_Y;
 	d_Y.height = Y.height;
 	d_Y.width = Y.width; 
-	size = d_Y.width * d_Y.height * sizeof(double);
+	size = d_Y.width * d_Y.height * sizeof(float);
 	err = cudaMalloc(&d_Y.elements, size);
 	printf("CUDA malloc d_Y: %s\n", cudaGetErrorString(err));
 	// invoke zeros kernel
@@ -292,7 +292,7 @@ void graphMatching(Matrix G1, Matrix G2, double sigma, int numberOfMatches, Matr
 	//printf("Run marginalize kernel: %s\n", cudaGetErrorString(err));
 
 	// read Y from device memory
-	size = Y.width * Y.height * sizeof(double);
+	size = Y.width * Y.height * sizeof(float);
 	err = cudaMemcpy(Y.elements, d_Y.elements, size, cudaMemcpyDeviceToHost);
 	printf("Copy Y off of device: %s\n",cudaGetErrorString(err));
 	

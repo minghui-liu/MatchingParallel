@@ -31,7 +31,7 @@ void binary(Matrix A){
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -66,7 +66,7 @@ void makeSymmetric(Matrix A){
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -94,13 +94,13 @@ int main(){
 	size_t m = (NODES*NODES)/2 - NODES/2;
 
 	curandGenerator_t gen, gen1;
-	double *devData, *hostData, *devData1, *hostAdjacent;
+	float *devData, *hostData, *devData1, *hostAdjacent;
 
-	hostData = (double *)calloc(n, sizeof(double));
-	hostAdjacent = (double *)calloc(m, sizeof(double));
+	hostData = (float *)calloc(n, sizeof(float));
+	hostAdjacent = (float *)calloc(m, sizeof(float));
 
-	CUDA_CALL(cudaMalloc((void **)&devData, n*sizeof(double)));
-	CUDA_CALL(cudaMalloc((void **)&devData1, m*sizeof(double)));
+	CUDA_CALL(cudaMalloc((void **)&devData, n*sizeof(float)));
+	CUDA_CALL(cudaMalloc((void **)&devData1, m*sizeof(float)));
 
 	CURAND_CALL(curandCreateGenerator(&gen, CURAND_RNG_PSEUDO_DEFAULT));
 	CURAND_CALL(curandCreateGenerator(&gen1, CURAND_RNG_PSEUDO_DEFAULT));
@@ -108,11 +108,11 @@ int main(){
 	CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen, 1234ULL));
 	CURAND_CALL(curandSetPseudoRandomGeneratorSeed(gen1, 1234ULL));
 
-	CURAND_CALL(curandGenerateUniformDouble(gen, devData, n));
-	CURAND_CALL(curandGenerateUniformDouble(gen1, devData1, m));
+	CURAND_CALL(curandGenerateUniformfloat(gen, devData, n));
+	CURAND_CALL(curandGenerateUniformfloat(gen1, devData1, m));
 
-	CUDA_CALL(cudaMemcpy(hostData, devData, n * sizeof(double), cudaMemcpyDeviceToHost));
-	CUDA_CALL(cudaMemcpy(hostAdjacent, devData1, m * sizeof(double), cudaMemcpyDeviceToHost));
+	CUDA_CALL(cudaMemcpy(hostData, devData, n * sizeof(float), cudaMemcpyDeviceToHost));
+	CUDA_CALL(cudaMemcpy(hostAdjacent, devData1, m * sizeof(float), cudaMemcpyDeviceToHost));
 
 	for(i = 0; i < 10; i++){
 		for(size_t j = 0; j < 10; j++){
@@ -130,8 +130,8 @@ int main(){
 	Matrix Adjacency;
 	Adjacency.width = NODES;
 	Adjacency.height = NODES;
-	Adjacency.elements = (double*)malloc(m*sizeof(double));
-	memcpy(Adjacency.elements, hostAdjacent, m*sizeof(double));
+	Adjacency.elements = (float*)malloc(m*sizeof(float));
+	memcpy(Adjacency.elements, hostAdjacent, m*sizeof(float));
 
 /*	for(i = 0; i < 10; i++){
 		printf("%1.4f\t", Adjacency.elements[i]);
@@ -141,14 +141,14 @@ int main(){
 	Matrix G1, G2;
 	G2.width = G1.width = NODES;
 	G2.height = G1.height  = NODES;
-	G1.elements = (double*)malloc(G1.height*G1.width*sizeof(double));
-	G2.elements = (double*)malloc(G2.height*G2.width*sizeof(double));
+	G1.elements = (float*)malloc(G1.height*G1.width*sizeof(float));
+	G2.elements = (float*)malloc(G2.height*G2.width*sizeof(float));
 
-	memcpy(G1.elements, hostData, n*sizeof(double));
+	memcpy(G1.elements, hostData, n*sizeof(float));
 
 	makeSymmetric(G1);
 
-	memcpy(G2.elements, G1.elements, G2.height*G2.width*sizeof(double));
+	memcpy(G2.elements, G1.elements, G2.height*G2.width*sizeof(float));
 
 	printf("G1:\n");
 	for(int i=0; i<10; i++){
@@ -169,9 +169,9 @@ int main(){
 	Matrix X, Y, Z;
 	X.width = Y.width = Z.width = NODES;
 	X.height = Y.height = Z.height  = NODES;
-	X.elements = (double*)malloc(X.height*X.width*sizeof(double));
-	Y.elements = (double*)malloc(Y.height*Y.width*sizeof(double));
-	Z.elements = (double*)malloc(Z.height*Z.width*sizeof(double));
+	X.elements = (float*)malloc(X.height*X.width*sizeof(float));
+	Y.elements = (float*)malloc(Y.height*Y.width*sizeof(float));
+	Z.elements = (float*)malloc(Z.height*Z.width*sizeof(float));
 	
 	// sigma = 1, numberOfMatches = 3
 	graphMatching(G1, G2, 1, NODES, X, Z, Y);

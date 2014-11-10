@@ -12,7 +12,7 @@
 typedef struct {
   int width;
   int height;
-	double* elements;
+	float* elements;
 } Matrix;
 
 //function to print a matrix
@@ -61,7 +61,7 @@ void getCol(Matrix In, Matrix Out, int num) {
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
@@ -70,7 +70,7 @@ void getCol(Matrix In, Matrix Out, int num) {
 	// allocate Out in device memory
 	Matrix d_Out;
   d_Out.width = Out.width; d_Out.height = Out.height;
-  size = Out.width * Out.height * sizeof(double);
+  size = Out.width * Out.height * sizeof(float);
   err = cudaMalloc(&d_Out.elements, size);
   //printf("CUDA malloc Out: %s\n", cudaGetErrorString(err));	
 
@@ -118,7 +118,7 @@ int isSymmetric(Matrix A) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);
@@ -181,7 +181,7 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -199,7 +199,7 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
   d_Out.width = Out.width; d_Out.height = Out.height;
-  size = Out.width * Out.height * sizeof(double);
+  size = Out.width * Out.height * sizeof(float);
   cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -222,7 +222,7 @@ void matDiv(Matrix A, Matrix B, Matrix Out) {
 
 // matrix matPlusScaler kernel called by matPlusScaler()
 __global__
-void matPlusScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
+void matPlusScalerKernel(Matrix d_In, float scaler, Matrix d_Out) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_In.height || col >= d_In.width) return;
@@ -230,13 +230,13 @@ void matPlusScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
 	d_Out.elements[idx] = d_In.elements[idx] + scaler;
 }
 
-void matPlusScaler(Matrix In, double scaler, Matrix Out) {
+void matPlusScaler(Matrix In, float scaler, Matrix Out) {
 	//printf("matPlusScaler()\n");
 	// load In to device memory
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
@@ -245,7 +245,7 @@ void matPlusScaler(Matrix In, double scaler, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
   d_Out.width = Out.width; d_Out.height = Out.height;
-  size = Out.width * Out.height * sizeof(double);
+  size = Out.width * Out.height * sizeof(float);
   cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -283,7 +283,7 @@ void matSub(Matrix A, Matrix B, Matrix C){
 	d_B.width = B.width;
 	d_A.height = A.height;
 	d_B.height = B.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));
@@ -321,7 +321,7 @@ void matSub(Matrix A, Matrix B, Matrix C){
 
 // matrix matTimesScaler kernel called by matTimesScaler()
 __global__
-void matTimesScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
+void matTimesScalerKernel(Matrix d_In, float scaler, Matrix d_Out) {
 	int row = blockIdx.y * blockDim.y + threadIdx.y;
 	int col = blockIdx.x * blockDim.x + threadIdx.x;
 	if(row >= d_In.height || col >= d_In.width) return;
@@ -329,13 +329,13 @@ void matTimesScalerKernel(Matrix d_In, double scaler, Matrix d_Out) {
 	d_Out.elements[idx] = d_In.elements[idx] * scaler;
 }
 
-void matTimesScaler(Matrix In, double scaler, Matrix Out) {
+void matTimesScaler(Matrix In, float scaler, Matrix Out) {
 	//printf("matTimesScaler()\n");
 	// load In to device memory
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
@@ -344,7 +344,7 @@ void matTimesScaler(Matrix In, double scaler, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
   d_Out.width = Out.width; d_Out.height = Out.height;
-  size = Out.width * Out.height * sizeof(double);
+  size = Out.width * Out.height * sizeof(float);
   cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -367,7 +367,7 @@ void matTimesScaler(Matrix In, double scaler, Matrix Out) {
 __global__
 void maxOfMatrixRow(Matrix d_A, Matrix d_col) {
 	int row = blockIdx.x * blockDim.x + threadIdx.x;
-	double max = d_A.elements[row*d_A.width];
+	float max = d_A.elements[row*d_A.width];
 	for (int col=0; col<d_A.width; col++) {
 		max = (d_A.elements[row*d_A.width+col] > max)? d_A.elements[row*d_A.width+col] : max;
 	}
@@ -389,7 +389,7 @@ void ones(Matrix A) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
@@ -443,7 +443,7 @@ void reshape(Matrix In, Matrix Out) {
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
@@ -452,7 +452,7 @@ void reshape(Matrix In, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
 	d_Out.width = Out.width; d_Out.height = Out.height;
-	size = Out.width * Out.height * sizeof(double);
+	size = Out.width * Out.height * sizeof(float);
 	cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -486,7 +486,7 @@ void sumOfMatrixCol(Matrix In, Matrix Out) {
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_In.elements, In.elements, size, cudaMemcpyHostToDevice);	
@@ -495,7 +495,7 @@ void sumOfMatrixCol(Matrix In, Matrix Out) {
 	// allocate Out in device memory
 	Matrix d_Out;
 	d_Out.width = Out.width; d_Out.height = Out.height;
-	size = Out.width * Out.height * sizeof(double);
+	size = Out.width * Out.height * sizeof(float);
 	cudaMalloc(&d_Out.elements, size);
 
 	// invoke kernel
@@ -531,7 +531,7 @@ void transpose(Matrix In, Matrix Out) {
 	Matrix d_In;
 	d_In.width = In.width;
 	d_In.height = In.height;
-	size_t size = In.width * In.height * sizeof(double);
+	size_t size = In.width * In.height * sizeof(float);
 
 	cudaError_t err = cudaMalloc(&d_In.elements, size);
 	//printf("CUDA malloc In: %s\n", cudaGetErrorString(err));
@@ -542,7 +542,7 @@ void transpose(Matrix In, Matrix Out) {
 	Matrix d_Out;
 	d_Out.width = Out.width;
 	d_Out.height = Out.height;
-	size = d_Out.width * d_Out.height * sizeof(double);
+	size = d_Out.width * d_Out.height * sizeof(float);
 	err = cudaMalloc(&d_Out.elements, size);
 	//printf("CUDA malloc d_Out: %s\n", cudaGetErrorString(err));
 
@@ -578,7 +578,7 @@ void zeros(Matrix A) {
 	Matrix d_A;
 	d_A.width = A.width;
 	d_A.height = A.height;
-	size_t size = A.width * A.height * sizeof(double);
+	size_t size = A.width * A.height * sizeof(float);
 	cudaError_t err = cudaMalloc(&d_A.elements, size);
 	//printf("CUDA malloc A: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_A.elements, A.elements, size, cudaMemcpyHostToDevice);	
