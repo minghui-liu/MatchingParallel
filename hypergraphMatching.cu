@@ -24,7 +24,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	Matrix d_soft;
 	d_soft.height = soft.height;
 	d_soft.width = soft.width;
-	size_t size = d_soft.height * d_soft.width * sizeof(float);
+	size_t size = d_soft.height * d_soft.width * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_soft.elements, size);
 	//printf("CUDA malloc d_soft: %s\n", cudaGetErrorString(err));
 	err = cudaMemcpy(d_soft.elements, soft.elements, size, cudaMemcpyHostToDevice);	
@@ -34,7 +34,7 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	Matrix d_hard;
 	d_hard.height = hard.height;
 	d_hard.width = hard.width;
-	size = d_hard.height * d_hard.width * sizeof(float);
+	size = d_hard.height * d_hard.width * sizeof(double);
 	err = cudaMalloc(&d_hard.elements, size);
 	//printf("CUDA malloc d_hard: %s\n", cudaGetErrorString(err));	
 		
@@ -47,14 +47,14 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 	Matrix d_maxSoft;
 	d_maxSoft.height = d_soft.height;
 	d_maxSoft.width = 1;
-	err = cudaMalloc(&d_maxSoft.elements, d_maxSoft.height*sizeof(float));
+	err = cudaMalloc(&d_maxSoft.elements, d_maxSoft.height*sizeof(double));
 	//printf("CUDA malloc d_maxSoft: %s\n", cudaGetErrorString(err));	
 	
 	// allocate d_soft_r on device
 	Matrix d_soft_r;
 	d_soft_r.height = 1;
 	d_soft_r.width = d_soft.width;
-	err = cudaMalloc(&d_soft_r.elements, d_soft_r.width*sizeof(float));
+	err = cudaMalloc(&d_soft_r.elements, d_soft_r.width*sizeof(double));
 	//printf("CUDA malloc d_soft_r: %s\n", cudaGetErrorString(err));	
 	
 	for (int i=0; i < numberOfMatches; i++) {	
@@ -68,12 +68,10 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		err = cudaThreadSynchronize();
 		//printf("Run maxOfMatrixRow kernel: %s\n", cudaGetErrorString(err));
 		
-		printf("before dummy and r\n");		
 		// [dummy,r] = max(maxSoft);
-		thrust::device_vector<float> D_maxSoft(d_maxSoft.elements, d_maxSoft.elements + d_maxSoft.width * d_maxSoft.height);
-		thrust::detail::normal_iterator<thrust::device_ptr<float> > dummyIt = thrust::max_element(D_maxSoft.begin(), D_maxSoft.end());
+		thrust::device_vector<double> D_maxSoft(d_maxSoft.elements, d_maxSoft.elements + d_maxSoft.width * d_maxSoft.height);
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > dummyIt = thrust::max_element(D_maxSoft.begin(), D_maxSoft.end());
 		int r = dummyIt - D_maxSoft.begin();
-		printf("after dummy and r\n");		
 
 		// soft(r,:)
 		// invoke getRow kernel
@@ -81,13 +79,13 @@ void soft2hard(Matrix soft, int numberOfMatches, Matrix hard) {
 		dimGrid = dim3( (d_soft.width + dimBlock.x - 1)/dimBlock.x ,(d_soft.height + dimBlock.y - 1)/dimBlock.y );
 		getRowKernel<<<dimGrid, dimBlock>>>(d_soft, d_soft_r, r);
 	
-		printf("before val and c\n");	
+		//printf("before val and c\n");	
 		// [val,c] = max(soft(r,:));
-		thrust::device_vector<float> D_soft_r(d_soft_r.elements, d_soft_r.elements + d_soft_r.width * d_soft_r.height);
-		thrust::detail::normal_iterator<thrust::device_ptr<float> > valIt = thrust::max_element(D_soft_r.begin(), D_soft_r.end());
-		float val = *valIt;
+		thrust::device_vector<double> D_soft_r(d_soft_r.elements, d_soft_r.elements + d_soft_r.width * d_soft_r.height);
+		thrust::detail::normal_iterator<thrust::device_ptr<double> > valIt = thrust::max_element(D_soft_r.begin(), D_soft_r.end());
+		double val = *valIt;
 		int c = valIt - D_soft_r.begin();
-		printf("after val and c\n");		
+		//printf("after val and c\n");		
 
 		if (val < 0) { 
 			return;
@@ -142,10 +140,10 @@ void hypergraphMatching(Matrix Y, int numberOfMatches, Matrix X, Matrix Z) {
 	Matrix maxRowSum, maxColSum;
 	maxRowSum.height = Y.height;
 	maxRowSum.width = 1;
-	maxRowSum.elements = (float*)malloc(maxRowSum.height*sizeof(float));
+	maxRowSum.elements = (double*)malloc(maxRowSum.height*sizeof(double));
 	maxColSum.height = 1;
 	maxColSum.width = Y.width;
-	maxColSum.elements = (float*)malloc(maxColSum.width*sizeof(float));
+	maxColSum.elements = (double*)malloc(maxColSum.width*sizeof(double));
 	
 	ones(maxRowSum);
 	ones(maxColSum);

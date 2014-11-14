@@ -1,7 +1,7 @@
 #include "matlib.cu"
 #define EPS 2.2204e-16
 
-void exactTotalSum(Matrix y, Matrix h, float totalSum, float precision, Matrix x) {
+void exactTotalSum(Matrix y, Matrix h, double totalSum, double precision, Matrix x) {
 	// y and h are vectors, totalSum and precision are scalars
 	// x is the return vector and length is the length of y, h, and x
 	
@@ -9,16 +9,16 @@ void exactTotalSum(Matrix y, Matrix h, float totalSum, float precision, Matrix x
 	Matrix hAlpha;
 	hAlpha.width = h.width;
 	hAlpha.height = h.height;
-	hAlpha.elements = (float*)malloc(hAlpha.width * hAlpha.height * sizeof(float));
+	hAlpha.elements = (double*)malloc(hAlpha.width * hAlpha.height * sizeof(double));
 
-	float totalSumMinus = totalSum - precision;
-	thrust::host_vector<float> H_h(h.elements, h.elements + h.width*h.height);
-	thrust::device_vector<float> D_h = H_h;
-	thrust::detail::normal_iterator<thrust::device_ptr<float> > MinIt = thrust::min_element(D_h.begin(), D_h.end());
-	float Min = *MinIt;
-	float curAlpha = -Min + EPS;
+	double totalSumMinus = totalSum - precision;
+	thrust::host_vector<double> H_h(h.elements, h.elements + h.width*h.height);
+	thrust::device_vector<double> D_h = H_h;
+	thrust::detail::normal_iterator<thrust::device_ptr<double> > MinIt = thrust::min_element(D_h.begin(), D_h.end());
+	double Min = *MinIt;
+	double curAlpha = -Min + EPS;
 
-	float stepAlpha, newAlpha, newSum;
+	double stepAlpha, newAlpha, newSum;
 	stepAlpha = (10 > fabs(curAlpha/10))? 10 : fabs(curAlpha/10);
 
 	for(int j=0; j < 50; j++) {
@@ -28,9 +28,9 @@ void exactTotalSum(Matrix y, Matrix h, float totalSum, float precision, Matrix x
 		matPlusScaler(h, newAlpha, hAlpha);
 		matDiv(y, hAlpha, x);
 
-		thrust::host_vector<float> H_x(x.elements, x.elements + x.width * x.height);
-		thrust::device_vector<float> D_x = H_x;
-		newSum = thrust::reduce(D_x.begin(), D_x.end(), (float) 0, thrust::plus<float>());
+		thrust::host_vector<double> H_x(x.elements, x.elements + x.width * x.height);
+		thrust::device_vector<double> D_x = H_x;
+		newSum = thrust::reduce(D_x.begin(), D_x.end(), (double) 0, thrust::plus<double>());
 
 		if(newSum > totalSum) {
 			curAlpha = newAlpha;

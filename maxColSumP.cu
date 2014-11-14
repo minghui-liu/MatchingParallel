@@ -23,7 +23,7 @@ void unconstrainedP(Matrix Y, Matrix H, Matrix X) {
 	Matrix d_X;
 	d_X.width = X.width;
 	d_X.height = X.height;
-	size_t size = X.width * X.height * sizeof(float);
+	size_t size = X.width * X.height * sizeof(double);
 	cudaError_t err = cudaMalloc(&d_X.elements, size);
 	//printf("CUDA malloc X: %s\n", cudaGetErrorString(err));	
 	cudaMemcpy(d_X.elements, X.elements, size, cudaMemcpyHostToDevice);	
@@ -46,24 +46,24 @@ void unconstrainedP(Matrix Y, Matrix H, Matrix X) {
 }
 
 
-void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, float precision, Matrix X) {
+void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, double precision, Matrix X) {
 	// unconstrainedP is clean	
 	unconstrainedP(Y, H, X);
 
 	Matrix Xsum;
 	Xsum.height = 1;
 	Xsum.width = X.width;
-	Xsum.elements = (float*)malloc(X.width * sizeof(float));
+	Xsum.elements = (double*)malloc(X.width * sizeof(double));
 	
 	Matrix Xcol;
 	Xcol.width = 1; Xcol.height = X.height;
-	Xcol.elements = (float*)malloc(Xcol.height * sizeof(float));
+	Xcol.elements = (double*)malloc(Xcol.height * sizeof(double));
 	
 	for (int i=0; i<X.width; i++) {
 		getCol(X, Xcol, i);
-		thrust::host_vector<float> h_Xcol(Xcol.elements, Xcol.elements + Xcol.height);
-		thrust::device_vector<float> d_Xcol = h_Xcol;
-		Xsum.elements[i] = thrust::reduce(d_Xcol.begin(), d_Xcol.end(), (float) 0, thrust::plus<float>());
+		thrust::host_vector<double> h_Xcol(Xcol.elements, Xcol.elements + Xcol.height);
+		thrust::device_vector<double> d_Xcol = h_Xcol;
+		Xsum.elements[i] = thrust::reduce(d_Xcol.begin(), d_Xcol.end(), (double) 0, thrust::plus<double>());
 		
 		// empty vectors
 		h_Xcol.clear();
@@ -80,9 +80,9 @@ void maxColSumP(Matrix Y, Matrix H, Matrix maxColSum, float precision, Matrix X)
 	yCol.height = Y.height;
 	hCol.height = H.height;
 	//Xcol.height = X.height;
-	yCol.elements = (float*)malloc(Y.height * sizeof(float));
-	hCol.elements = (float*)malloc(H.height * sizeof(float));
-	//Xcol.elements = (float*)malloc(X.height * sizeof(float));
+	yCol.elements = (double*)malloc(Y.height * sizeof(double));
+	hCol.elements = (double*)malloc(H.height * sizeof(double));
+	//Xcol.elements = (double*)malloc(X.height * sizeof(double));
 
 	for(int i=0; i < Xsum.width; i++) {
 		if(Xsum.elements[i] > maxColSum.elements[i]) {
